@@ -1,0 +1,1585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PEPAL Order Desk</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f4f5f7;--surface:#ffffff;--surface2:#f0f2f5;--border:#e1e4e9;--border2:#cfd4db;
+  --text:#1a1d22;--muted:#5f6874;--faint:#8a929c;
+  --accent:#0f766e;--accent-ink:#ffffff;--accent-weak:#e3f3f1;
+  --ok:#15803d;--warn:#b45309;--bad:#c2261d;--info:#1d4ed8;--neutral:#5f6874;--violet:#6d28d9;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  --shadow-lg:0 12px 32px rgba(16,24,40,.18);
+  --radius:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1115;--surface:#161a20;--surface2:#1d222a;--border:#2a3039;--border2:#38404b;
+    --text:#e7eaee;--muted:#9aa3ae;--faint:#6f7883;
+    --accent:#2dd4bf;--accent-ink:#06201d;--accent-weak:#123430;
+    --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--info:#7aa7ff;--neutral:#9aa3ae;--violet:#b197fc;
+    --shadow:0 1px 2px rgba(0,0,0,.4);--shadow-lg:0 12px 32px rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1115;--surface:#161a20;--surface2:#1d222a;--border:#2a3039;--border2:#38404b;
+  --text:#e7eaee;--muted:#9aa3ae;--faint:#6f7883;
+  --accent:#2dd4bf;--accent-ink:#06201d;--accent-weak:#123430;
+  --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--info:#7aa7ff;--neutral:#9aa3ae;--violet:#b197fc;
+  --shadow:0 1px 2px rgba(0,0,0,.4);--shadow-lg:0 12px 32px rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.muted{color:var(--muted)}.faint{color:var(--faint)}.small{font-size:12px}
+.hidden{display:none!important}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+.hbar{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:0}
+.search{flex:1;max-width:380px;margin-left:auto;position:relative}
+.search input{width:100%;padding:8px 12px 8px 32px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--faint)}
+nav.tabs{max-width:1320px;margin:0 auto;display:flex;gap:2px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+nav.tabs button{background:none;border:0;padding:10px 12px;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;white-space:nowrap;font-weight:600}
+nav.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+nav.tabs .count{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:var(--accent-weak);color:var(--accent);font-size:11px;line-height:18px;text-align:center}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-weight:600;white-space:nowrap;text-decoration:none;color:var(--text)}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--border))}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:7px}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--surface2)}
+.iconbtn{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer}
+.iconbtn:hover{background:var(--surface2)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.pill.warn .dot{background:var(--warn)}.pill.bad .dot{background:var(--bad)}
+
+main{max-width:1320px;margin:0 auto;padding:18px 16px 60px}
+h2{font-size:18px;margin:0 0 4px}
+h3{font-size:14px;margin:0;font-weight:700}
+.pagehead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pagehead .grow{flex:1}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card>.ch{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.card>.ch .grow{flex:1}
+.card>.cb{padding:12px 14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);text-align:left;cursor:pointer;transition:border-color .12s,transform .12s}
+.kpi:hover{border-color:var(--accent);transform:translateY(-1px)}
+.kpi .l{font-size:12px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:11px;color:var(--faint);margin-top:2px}
+.kpi.static{cursor:default}.kpi.static:hover{border-color:var(--border);transform:none}
+.kpi.accent .v{color:var(--accent)}.kpi.bad .v{color:var(--bad)}
+
+/* tables */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;background:var(--surface2);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tr.click{cursor:pointer}
+tr.click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+td.link,span.link{color:var(--accent);cursor:pointer;font-weight:600}
+td.link:hover,span.link:hover{text-decoration:underline}
+tfoot td{font-weight:700;background:var(--surface2);border-top:1px solid var(--border2)}
+th.sort{cursor:pointer}th.sort:hover{color:var(--text)}
+.zero{color:var(--faint)}
+
+/* badges */
+.b{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;--c:var(--neutral);color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 26%,transparent)}
+.b.ok{--c:var(--ok)}.b.warn{--c:var(--warn)}.b.bad{--c:var(--bad)}.b.info{--c:var(--info)}.b.violet{--c:var(--violet)}.b.accent{--c:var(--accent)}
+
+/* bars */
+.bar{position:relative;height:10px;border-radius:5px;background:var(--surface2);min-width:80px;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:color-mix(in srgb,var(--accent) 35%,transparent)}
+.bar b{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--accent)}
+
+/* filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.filters select,.filters input[type=text],.filters input[type=search]{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-weight:600;font-size:12.5px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip .n{opacity:.75;margin-left:4px}
+.notice{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:8px;background:var(--accent-weak);color:var(--text);margin-bottom:12px;font-size:13px}
+
+/* to do cards */
+.todo{display:grid;gap:10px}
+.tcard{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--border2);border-radius:var(--radius);padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px 16px;box-shadow:var(--shadow)}
+.tcard.late{border-left-color:var(--bad)}.tcard.mid{border-left-color:var(--warn)}.tcard.fresh{border-left-color:var(--ok)}
+.tcard .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tcard .who{font-weight:700;cursor:pointer}.tcard .who:hover{color:var(--accent)}
+.tcard .meta{color:var(--muted);font-size:12.5px;margin-top:3px}
+.tcard .acts{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1}
+.tcard .amt{text-align:right}
+.tcard .amt .due{font-weight:700;font-size:16px;color:var(--bad)}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:40;opacity:0;pointer-events:none;transition:opacity .15s}
+.scrim.on{opacity:1;pointer-events:auto}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100vw);background:var(--bg);z-index:41;box-shadow:var(--shadow-lg);transform:translateX(105%);transition:transform .18s ease;display:flex;flex-direction:column}
+#drawer.on{transform:none}
+#drawer .dh{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+#drawer .dh h3{flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#drawer .db{flex:1;overflow:auto;padding:14px}
+.sect{margin-bottom:14px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.kv>div{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.kv .k{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.kv .v{font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.orow{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer}
+.orow:hover{border-color:var(--accent)}
+.orow .no{font-weight:800;color:var(--accent);min-width:34px}
+.orow .r{text-align:right}
+.orow .badges{grid-column:2/-1;display:flex;gap:6px;flex-wrap:wrap}
+.notebox{padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);white-space:pre-wrap}
+.notebox.check{border-color:color-mix(in srgb,var(--warn) 50%,var(--border));background:color-mix(in srgb,var(--warn) 9%,var(--surface))}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.log{font-size:12px;color:var(--muted)}
+.log div{padding:3px 0;border-bottom:1px dashed var(--border)}
+
+/* modal */
+#modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(10,14,20,.5);overflow:auto}
+#modal.on{display:flex}
+.mbox{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);width:min(820px,100%);}
+.mbox.narrow{width:min(480px,100%)}
+.mh{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.mh h3{flex:1;font-size:16px}
+.mb{padding:14px 16px}
+.mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2);border-radius:0 0 12px 12px;flex-wrap:wrap}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px 12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.wide{grid-column:1/-1}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.field input,.field select,.field textarea,td input,td select{padding:7px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--surface);width:100%;min-width:0}
+.field input:focus,.field select:focus,.field textarea:focus,td input:focus,td select:focus,.search input:focus,.filters input:focus,.filters select:focus{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:0;border-color:var(--accent)}
+.hint{font-size:12px;color:var(--warn);min-height:0}
+.fsec{margin:16px 0 8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.totals{display:flex;gap:18px;flex-wrap:wrap;justify-content:flex-end;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:10px}
+.totals div{text-align:right}.totals .k{font-size:11px;color:var(--muted)}.totals .v{font-weight:800;font-variant-numeric:tabular-nums}
+.itbl td{padding:5px 6px}.itbl input{text-align:right}
+.dlvcol{display:none}.showdlv .dlvcol{display:table-cell}
+.radio{display:flex;flex-direction:column;gap:8px}
+.radio label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+.radio label:has(input:checked){border-color:var(--accent);background:var(--accent-weak)}
+.xsec{border:1px solid var(--border);border-radius:9px;margin-top:10px;background:var(--surface2)}
+.xsec>summary{list-style:none;cursor:pointer;padding:10px 12px;display:flex;gap:10px;align-items:center;font-weight:700;user-select:none}
+.xsec>summary::-webkit-details-marker{display:none}
+.xsec>summary::before{content:'▸';color:var(--muted);transition:transform .12s;display:inline-block}
+.xsec[open]>summary::before{transform:rotate(90deg)}
+.xsec>summary .xs{margin-left:auto;font-weight:500;font-size:12.5px;color:var(--muted);text-align:right}
+.xsec>summary:hover{color:var(--accent)}
+.xsec .xb{padding:0 12px 12px}
+.pill.ok .dot{background:var(--ok)}.pill.warn .dot{background:var(--warn)}.pill.bad .dot{background:var(--bad)}.pill.off .dot{background:var(--faint)}
+.pill.bad{border-color:color-mix(in srgb,var(--bad) 50%,var(--border));color:var(--bad)}
+.userchip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-weight:700;font-size:12.5px;white-space:nowrap}
+.userchip:hover{border-color:var(--accent)}
+body.locked .search,body.locked #syncPill,body.locked #userChip,body.locked .hbar [data-act=new-order],body.locked #tabs{display:none!important}
+body:not(.admin) .adminonly{display:none!important}
+.cmp td.diff{color:var(--warn);font-weight:700}
+
+/* empty */
+.empty{max-width:720px;margin:40px auto;text-align:center}
+.empty .card{padding:28px}
+.empty .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:20px;text-align:left}
+.empty .opt{border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;background:var(--surface)}
+.empty .opt:hover{border-color:var(--accent)}
+.empty .opt b{display:block;margin-bottom:4px}
+.nodata{padding:18px;text-align:center;color:var(--muted)}
+
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;opacity:0;transition:.2s;z-index:80;pointer-events:none;max-width:90vw}
+#toast.on{opacity:1;transform:translateX(-50%)}
+.listrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);font-size:12.5px}
+.tag button{border:0;background:none;cursor:pointer;color:var(--faint);font-size:14px;line-height:1;padding:0 4px}
+.tag button:hover{color:var(--bad)}
+kbd{font-size:11px;padding:1px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2)}
+@media (max-width:720px){
+  .hbar{flex-wrap:wrap}.search{order:5;max-width:none;flex-basis:100%;margin:0}
+  .brand small{display:none}
+  .kpi .v{font-size:18px}
+  .tcard{grid-template-columns:1fr}.tcard .amt{text-align:left}
+}
+@media print{header,.filters,.chips,.acts,#drawer,.scrim,.btn{display:none!important}body{background:#fff}.card,.tcard{box-shadow:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <div class="brand"><div class="logo">P</div><div>PEPAL Order Desk<small>Orders · Delivery · Payments</small></div></div>
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="gsearch" type="search" placeholder="Search order no, customer, phone…  ( / )" autocomplete="off">
+    </div>
+    <button class="pill" id="syncPill" data-act="sync-pill"><span class="dot"></span><span id="syncTxt">…</span></button>
+    <button class="userchip" id="userChip" data-act="account">👤 <span id="userTxt"></span></button>
+    <button class="btn primary" data-act="new-order">+ New order</button>
+    <button class="iconbtn" data-act="theme" id="themeBtn" title="Switch light / dark"></button>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-act="tab" data-tab="dash">Dashboard</button>
+    <button data-act="tab" data-tab="todo">To Do <span class="count" id="todoCount">0</span></button>
+    <button data-act="tab" data-tab="orders">Orders</button>
+    <button data-act="tab" data-tab="customers">Customers</button>
+    <button data-act="tab" data-tab="log" class="adminonly">Activity log</button>
+    <button data-act="tab" data-tab="settings">Settings &amp; Data</button>
+  </nav>
+</header>
+<main id="main"></main>
+
+<div class="scrim" id="scrim" data-act="drawer-close"></div>
+<aside id="drawer" aria-hidden="true">
+  <div class="dh">
+    <button class="iconbtn" data-act="drawer-back" id="drawerBack" title="Back">←</button>
+    <h3 id="drawerTitle"></h3>
+    <button class="iconbtn" data-act="drawer-close" title="Close (Esc)">✕</button>
+  </div>
+  <div class="db" id="drawerBody"></div>
+</aside>
+<div id="modal"></div>
+<div id="toast"></div>
+<input type="file" id="fileXlsx" accept=".xlsx,.xlsm,.xls" class="hidden">
+<input type="file" id="fileJson" accept=".json,application/json" class="hidden">
+
+<script>
+"use strict";
+/* ============ cloud settings ============ */
+// ↓↓↓ Paste your Apps Script Web app URL (ends with /exec) between the quotes before publishing.
+//     If left empty, the sign-in screen asks for it once on each device.
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwoD-IbsIS3Q15w9hmN4LPX8Tca-7ygwQnlJg1qFP7DrYbQG9EOMeoEac3dqjs13lfC/exec';
+
+const THEMEKEY='pepal_order_desk_theme', OLDKEY='pepal_order_desk_v1';
+const CFGKEY='pepal_cloud_cfg', CACHEKEY='pepal_cloud_cache', QKEY='pepal_cloud_queue', ISSKEY='pepal_cloud_issues';
+const LS={
+  get(k){try{return localStorage.getItem(k)}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}},
+  del(k){try{localStorage.removeItem(k)}catch(e){}}
+};
+const jget=(k,d)=>{try{const v=LS.get(k);return v?JSON.parse(v):d}catch(e){return d}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const DELIVERY=['Yet to Deliver','Dispatched','Part Delivered','Delivered','Cancelled'];
+const PAYSTAT=['Paid','Part paid','Unpaid','Amount TBC','n/a'];
+const ORDER_FIELDS=['id','no','date','customer','phone','items','disc','flat','offer','override','payments','status','deliveryDate','notes','payMode'];
+
+function nowISO(){return new Date().toISOString()}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function uid(p){return (p||'x')+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function blankDB(){return{products:[],lists:{payModes:['UPI','Cash','Cheque','Bank Transfer/NEFT/RTGS','Card'],offers:[{name:'Standard',kind:'',val:null}]},customers:[],orders:[],meta:{}}}
+function normalizeDB(d){
+  const b=blankDB();d=d||b;d.meta=d.meta||{};d.lists=Object.assign(b.lists,d.lists||{});
+  d.products=d.products||[];d.customers=d.customers||[];d.lists.offers=(d.lists.offers||[]).map(normOffer);
+  d.orders=(d.orders||[]).map(o=>Object.assign({items:[],payments:[],log:[],status:'',notes:''},o));return d}
+function normOffer(x){if(x.kind!==undefined)return x;const v=x.pct!=null&&x.pct!==''?+x.pct:(x.flat!=null&&x.flat!==''?+x.flat:null);return{name:x.name,kind:x.pct!=null&&x.pct!==''?'pct':(x.flat!=null&&x.flat!==''?'flat':''),val:v}}
+function parseOfferName(n){let m=n.match(/^(\d+(?:\.\d+)?)\s*%/);if(m)return{name:n,kind:'pct',val:+m[1]};
+  m=n.match(/^(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)\s*(?:\/-)?\s*(?:off|flat|rs|₹)/i)||n.match(/^(?:₹|rs\.?)\s*([\d,]+(?:\.\d+)?)/i);if(m)return{name:n,kind:'flat',val:+m[1].replace(/,/g,'')};return{name:n,kind:'',val:null}}
+const defaultOffer=()=>((DB.lists.offers.find(x=>/^standard$/i.test(x.name))||DB.lists.offers[0]||{}).name||'');
+
+/* ============ cloud state: cache (last copy from cloud) + queue (changes not yet uploaded) ============ */
+let CFG=jget(CFGKEY,{}), CACHE=jget(CACHEKEY,null), QUEUE=jget(QKEY,[]), ISSUES=jget(ISSKEY,[]);
+const SYNC={busy:false,offline:false,last:CACHE&&CACHE.at||null,err:'',timer:null};
+let DB=blankDB();
+const apiUrl=()=>DEFAULT_API_URL||CFG.api||'';
+const signedIn=()=>!!(CFG.token&&apiUrl());
+const isAdmin=()=>CFG.role==='admin';
+function persist(){LS.set(CFGKEY,JSON.stringify(CFG));LS.set(CACHEKEY,JSON.stringify(CACHE));LS.set(QKEY,JSON.stringify(QUEUE));LS.set(ISSKEY,JSON.stringify(ISSUES))}
+function pendingIds(){const s=new Set();QUEUE.forEach(op=>{const id=op.orderId||(op.order&&op.order.id);if(id)s.add(id)});return s}
+
+function buildView(){
+  DB=normalizeDB(clone(CACHE&&CACHE.data||blankDB()));
+  QUEUE.forEach(op=>{try{applyLocal(DB,op)}catch(e){console.warn('local apply',e)}});
+}
+// Shows a change immediately on this device; the cloud applies the same change for real.
+function applyLocal(d,op){
+  const f=id=>d.orders.find(o=>o.id===id);const bump=o=>{o.v=(+o.v||0)+1};
+  const lg=(o,msg)=>{(o.log=o.log||[]).push({at:op.at,user:CFG.user,msg:msg+' (waiting to sync)'})};
+  switch(op.type){
+    case'order.upsert':{const o=clone(op.order);const ex=f(o.id);
+      if(ex){Object.assign(ex,o);bump(ex);lg(ex,'Edited')}
+      else{const n=Object.assign({v:1,createdBy:CFG.user,createdAt:op.at,log:[]},o);lg(n,'Order created');d.orders.push(n)}break}
+    case'order.delete':d.orders=d.orders.filter(o=>o.id!==op.orderId);break;
+    case'order.status':{const o=f(op.orderId);if(!o)break;const prev=o.status||'not set';o.status=op.status;if(op.status==='Delivered'){o.items.forEach(i=>i.dlv=i.qty);if(!o.deliveryDate)o.deliveryDate=op.date}bump(o);lg(o,'Status '+prev+' → '+op.status);break}
+    case'order.patch':{const o=f(op.orderId);if(!o)break;Object.assign(o,clone(op.fields));bump(o);lg(o,op.why||'Updated');break}
+    case'payment.add':{const o=f(op.orderId);if(!o)break;o.payments=o.payments||[];if(!o.payments.some(p=>p.id===op.payment.id)){o.payments.push(Object.assign({by:CFG.user},op.payment));if(!o.payMode)o.payMode=op.payment.mode}bump(o);lg(o,'Payment '+money(op.payment.amount));break}
+    case'payment.del':{const o=f(op.orderId);if(!o)break;o.payments=(o.payments||[]).filter(p=>p.id!==op.paymentId);bump(o);break}
+    case'customer.add':if(!d.customers.some(c=>c.id===op.customer.id))d.customers.push(Object.assign({createdBy:CFG.user,createdAt:op.at},op.customer));break;
+    case'customer.update':{const c=d.customers.find(c=>c.id===op.customer.id);if(c)Object.assign(c,op.customer);break}
+    case'customer.delete':d.customers=d.customers.filter(c=>c.id!==op.customerId);break;
+    case'master.set':d.products=clone(op.products);d.lists=clone(op.lists);break;
+  }
+}
+function queueOp(op,msg){
+  op.id=uid('op');op.at=nowISO();op.by=CFG.user;
+  if(op.type==='master.set')QUEUE=QUEUE.filter(q=>q.type!=='master.set');   // newest masters win
+  QUEUE.push(op);persist();buildView();refresh();if(msg)toast(msg);
+  clearTimeout(SYNC.timer);SYNC.timer=setTimeout(sync,400);
+}
+function orderFields(o){const r={};ORDER_FIELDS.forEach(k=>{if(k in o)r[k]=clone(o[k])});return r}
+
+/* ============ talking to the Apps Script ============ */
+async function api(action,payload){
+  const url=apiUrl();if(!url)throw new Error('No cloud link set');
+  let r;
+  try{r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action,token:CFG.token},payload||{}))})}
+  catch(e){const er=new Error('No internet / cloud not reachable');er.offline=true;throw er}
+  let j;try{j=await r.json()}catch(e){throw new Error('The cloud link did not answer properly — check the link and that the Apps Script is deployed with access “Anyone”.')}
+  if(j&&j.auth&&action!=='login'){CFG.token=null;persist();refresh();toast(j.error||'Please sign in again')}
+  return j;
+}
+async function apiOrToast(action,payload){
+  try{const j=await api(action,payload);if(!j.ok&&!j.auth)toast(j.error||'Cloud error');return j}
+  catch(e){toast(e.offline?'You are offline — this needs internet':e.message);return{ok:false,error:e.message}}
+}
+
+let pendingRender=false;
+function softRefresh(){
+  const a=document.activeElement;
+  if(a&&$('#main').contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)){pendingRender=true;renderHeader();return}
+  refresh();
+}
+async function sync(manual){
+  if(!signedIn()||SYNC.busy)return;
+  SYNC.busy=true;SYNC.err='';renderHeader();
+  let changed=false;
+  try{
+    let rounds=0;
+    while(QUEUE.length&&rounds<5){
+      rounds++;
+      const batch=QUEUE.slice(0,150);
+      const res=await api('push',{ops:batch});
+      if(!res.ok){SYNC.err=res.error||'Sync failed';break}
+      (res.results||[]).forEach(r=>{
+        const op=QUEUE.find(q=>q.id===r.id);if(!op)return;
+        QUEUE=QUEUE.filter(q=>q!==op);
+        if(!r.ok)ISSUES.push({id:uid('i'),op,r,at:nowISO()});
+      });
+      CACHE={data:res.data,rev:res.rev,at:nowISO()};changed=true;
+    }
+    if(!QUEUE.length&&!SYNC.err){
+      const res=await api('pull',{rev:CACHE&&CACHE.rev});
+      if(res.ok){if(!res.same){CACHE={data:res.data,rev:res.rev,at:nowISO()};changed=true}else CACHE.at=nowISO()}
+      else SYNC.err=res.error||'Sync failed';
+    }
+    SYNC.offline=false;SYNC.last=nowISO();
+  }catch(e){SYNC.offline=!!e.offline;SYNC.err=e.offline?'':e.message}
+  finally{
+    SYNC.busy=false;persist();
+    if(changed){buildView();softRefresh()}else renderHeader();
+    if(manual)toast(SYNC.offline?'Offline — changes are kept and will upload later':SYNC.err?SYNC.err:'Synced with cloud ✓');
+    if(ISSUES.length&&changed&&!$('#modal').classList.contains('on'))openIssues();
+  }
+}
+setInterval(()=>{if(!document.hidden)sync()},45000);
+window.addEventListener('online',()=>sync());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
+window.addEventListener('focusout',()=>{if(pendingRender)setTimeout(()=>{const a=document.activeElement;if(!(a&&$('#main').contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))){pendingRender=false;refresh()}},150)});
+
+/* ============ formatting ============ */
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf=new Intl.NumberFormat('en-IN',{maximumFractionDigits:2}),nf2=new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=v=>{if(v==null||v==='')return'—';const a=Math.abs(Math.round(v*100)/100);return(v<0&&a?'−':'')+'₹'+(Number.isInteger(a)?nf:nf2).format(a)};
+const num=v=>nf.format(v||0);
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDate=s=>{if(!s)return'—';const[y,m,d]=s.split('-');return d+'-'+MON[+m-1]+'-'+y};
+const monthLabel=k=>k==='undated'?'Undated':MON[+k.slice(5,7)-1]+' '+k.slice(0,4);
+const daysBetween=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/864e5);
+const relDays=iso=>{const d=Math.floor((Date.now()-Date.parse(iso))/864e5);return d<=0?'today':d===1?'yesterday':d+' days ago'};
+const digits=s=>String(s||'').replace(/\D/g,'');
+const phoneKey=s=>{const d=digits(s);return d.length>=10?d.slice(-10):d};
+function waNum(p){const d=digits(p);if(d.length===10)return'91'+d;return d}
+const r2=v=>Math.round(v*100)/100;
+
+/* ============ calculations (mirror of the Excel formulas) ============ */
+function prodName(it){const p=DB.products.find(p=>p.id===it.pid);return p?p.name:(it.name||'?')}
+function calc(o){
+  const items=o.items.filter(i=>+i.qty>0);
+  const units=items.reduce((s,i)=>s+(+i.qty),0);
+  const listValue=r2(items.reduce((s,i)=>s+(+i.qty)*(+i.rate||0),0));
+  const hasOv=o.override!==null&&o.override!==undefined&&o.override!=='';
+  const disc=+o.disc||0,flat=+o.flat||0;
+  const amount=hasOv?+o.override:(listValue?r2(Math.max(0,listValue*(1-disc/100)-flat)):null);
+  const received=r2((o.payments||[]).reduce((s,p)=>s+(+p.amount||0),0));
+  const st=o.status||'';const cancelled=st==='Cancelled';
+  const balance=amount==null?null:(cancelled?0:r2(amount-received));
+  const pay=amount==null?'Amount TBC':cancelled?'n/a':balance<=0?'Paid':received>0?'Part paid':'Unpaid';
+  const overpaid=!cancelled&&amount!=null&&balance<-0.5;
+  const daysOpen=(o.date&&st!=='Delivered'&&!cancelled)?daysBetween(o.date,today()):null;
+  let next;
+  if(cancelled)next='Closed';
+  else if(amount==null)next='Confirm amount';
+  else if(st==='Delivered'&&pay==='Paid')next='Complete';
+  else if(!st)next='Set delivery status';
+  else if(st==='Delivered')next='Collect payment';
+  else{const d=st==='Dispatched'?'Awaiting delivery':st==='Part Delivered'?'Deliver balance qty':'Dispatch order';next=pay==='Paid'?d:d+' + collect payment'}
+  const open=next!=='Complete'&&next!=='Closed';
+  const discount=amount!=null&&listValue?r2(listValue-amount):0;
+  return{units,listValue,amount,received,balance,pay,overpaid,daysOpen,next,open,cancelled,discount,status:st,hasOv};
+}
+function itemQtyState(o,it){
+  const q=+it.qty||0,st=o.status||'';
+  const r={sold:0,delivered:0,dispatched:0,toDispatch:0,notSet:0};
+  if(st==='Cancelled'||!q)return r;r.sold=q;
+  if(st==='Delivered')r.delivered=q;else if(st==='Dispatched')r.dispatched=q;else if(st==='Yet to Deliver')r.toDispatch=q;
+  else if(st==='Part Delivered'){const d=Math.min(q,+it.dlv||0);r.delivered=d;r.toDispatch=q-d}else r.notSet=q;
+  return r;
+}
+const itemsText=o=>o.items.filter(i=>+i.qty>0).map(i=>i.qty+' × '+prodName(i)).join(', ')||'—';
+const nextNo=()=>DB.orders.reduce((m,o)=>Math.max(m,+o.no||0),0)+1;
+const byId=id=>DB.orders.find(o=>o.id===id);
+const hasCheck=o=>/(^|\|)\s*CHECK/i.test(o.notes||'');
+const custKey=o=>phoneKey(o.phone)||('n:'+String(o.customer||'').toLowerCase().trim());
+const normName=s=>String(s||'').toLowerCase().replace(/\(.*?\)/g,'').replace(/\bji\b/g,'').replace(/[^a-z]/g,'');
+
+/* ============ badges ============ */
+function delBadge(s){if(!s)return'<span class="b warn">Status not set</span>';const c={Delivered:'ok',Dispatched:'info','Yet to Deliver':'warn','Part Delivered':'violet',Cancelled:''}[s];return`<span class="b ${c}">${esc(s)}</span>`}
+function payBadge(p){const c={Paid:'ok','Part paid':'info',Unpaid:'bad','Amount TBC':'warn','n/a':''}[p];return`<span class="b ${c}">${esc(p)}</span>`}
+function nextBadge(n){const c=n==='Complete'?'ok':n==='Closed'?'':/collect/i.test(n)?'bad':/confirm|set/i.test(n)?'warn':'info';return`<span class="b ${c}">${esc(n)}</span>`}
+function ageBadge(d){if(d==null)return'';const c=d>15?'bad':d>7?'warn':'ok';return`<span class="b ${c}">${d}d open</span>`}
+
+/* ============ data checks ============ */
+function buildCtx(){
+  const ph={};DB.orders.forEach(o=>{const k=phoneKey(o.phone);if(k.length===10){(ph[k]=ph[k]||new Map()).set(normName(o.customer),o.customer)}});
+  return{ph};
+}
+const CHECKS=[
+  {id:'check',label:'Notes with a CHECK flag',lvl:'warn',t:o=>hasCheck(o)},
+  {id:'tbc',label:'Amount not confirmed (no qty / price)',lvl:'bad',t:(o,c)=>c.amount==null&&!c.cancelled},
+  {id:'nostatus',label:'Delivery status not set',lvl:'warn',t:(o,c)=>!c.status},
+  {id:'nodate',label:'Order date missing',lvl:'bad',t:o=>!o.date},
+  {id:'nophone',label:'Phone number missing',lvl:'',t:o=>!digits(o.phone)},
+  {id:'badphone',label:'Phone not 10 digits (maybe truncated)',lvl:'warn',t:o=>{const d=digits(o.phone);return d&&!(d.length===10||(d.length===12&&d.startsWith('91')))||/0000$/.test(d)}},
+  {id:'sharedphone',label:'Same phone used by different names',lvl:'warn',t:(o,c,x)=>{const k=phoneKey(o.phone);return k.length===10&&x.ph[k]&&x.ph[k].size>1}},
+  {id:'lowprice',label:'Price far below list (>40% off, no discount entered)',lvl:'warn',t:(o,c)=>c.amount!=null&&c.listValue>0&&c.amount<c.listValue*0.6&&!(+o.disc)&&!(+o.flat)&&!/%|off/i.test(o.offer||'')},
+  {id:'overpaid',label:'Received more than order amount',lvl:'bad',t:(o,c)=>c.overpaid},
+  {id:'nodeldate',label:'Delivered but no delivery date',lvl:'',t:(o,c)=>c.status==='Delivered'&&!o.deliveryDate},
+];
+
+/* ============ drill-down registry ============ */
+function drill(k,v){
+  const C=o=>calc(o);
+  const nc=o=>!C(o).cancelled;
+  switch(k){
+    case'all':return{t:'All orders (excl. cancelled)',f:nc};
+    case'every':return{t:'Every order',f:()=>true};
+    case'units':return{t:'Orders with units sold',f:o=>nc(o)&&C(o).units>0};
+    case'billed':return{t:'Billed orders',f:o=>nc(o)&&C(o).amount!=null};
+    case'received':return{t:'Orders with payments received',f:o=>nc(o)&&C(o).received>0};
+    case'due':return{t:'Orders with balance due',f:o=>C(o).balance>0};
+    case'open':return{t:'Open orders (To Do)',f:o=>C(o).open};
+    case'del':return{t:v?'Delivery: '+v:'Delivery status not set',f:o=>(o.status||'')===v};
+    case'pay':return{t:'Payment: '+v,f:o=>C(o).pay===v};
+    case'prod':{const p=DB.products.find(p=>p.id===v);return{t:'Orders with '+(p?p.name:v),f:o=>nc(o)&&o.items.some(i=>i.pid===v&&+i.qty>0)}}
+    case'pstate':{const[pid,b]=v.split('|');const p=DB.products.find(p=>p.id===pid);const lbl={delivered:'delivered',dispatched:'dispatched (in transit)',toDispatch:'to dispatch',notSet:'status not set',sold:'sold'}[b];
+      return{t:(p?p.name:pid)+' — '+lbl,f:o=>o.items.some(i=>i.pid===pid&&itemQtyState(o,i)[b]>0)}}
+    case'pending':return{t:'Orders with units still to dispatch',f:o=>o.items.some(i=>itemQtyState(o,i).toDispatch>0)};
+    case'month':return{t:'Orders in '+monthLabel(v),f:o=>nc(o)&&(v==='undated'?!o.date:(o.date||'').slice(0,7)===v)};
+    case'mode':return{t:'Payments by '+(v||'(no mode)'),f:o=>nc(o)&&(o.payments||[]).some(p=>(p.mode||'')===v)};
+    case'offer':return{t:'Offer: '+(v||'(none)'),f:o=>nc(o)&&(o.offer||'')===v};
+    case'disc':return{t:'Orders sold below list value',f:o=>nc(o)&&C(o).discount>0.5};
+    case'check':{const ck=CHECKS.find(c=>c.id===v);const x=buildCtx();return{t:ck.label,f:o=>ck.t(o,C(o),x)}}
+    case'age':{const[a,b]=v.split('-').map(Number);return{t:'Open '+(b?a+'–'+b:a+'+')+' days',f:o=>{const c=C(o);return c.open&&c.daysOpen!=null&&c.daysOpen>=a&&(!b||c.daysOpen<=b)}}}
+    case'cust':return{t:'Customer orders',f:o=>custKey(o)===v};
+  }
+  return{t:'Orders',f:()=>true};
+}
+
+/* ============ UI state ============ */
+const UI={tab:LS.get('pepal_tab')||'dash',of:{q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:null},sort:{col:'no',dir:-1},todoChip:'all',custQ:'',custSort:'balance'};
+let drawerStack=[];
+
+/* ============ Dashboard ============ */
+function dashView(){
+  const rows=DB.orders.map(o=>({o,c:calc(o)}));const live=rows.filter(r=>!r.c.cancelled);
+  const sum=(a,f)=>a.reduce((s,r)=>s+(f(r)||0),0);
+  const billed=sum(live,r=>r.c.amount),rec=sum(live,r=>r.c.received),due=sum(rows,r=>r.c.balance>0?r.c.balance:0);
+  const units=sum(live,r=>r.c.units),open=rows.filter(r=>r.c.open).length;
+  const pending=rows.reduce((s,r)=>s+r.o.items.reduce((a,i)=>a+itemQtyState(r.o,i).toDispatch,0),0);
+  const kpi=(l,v,s,act,cls='')=>`<button class="kpi ${cls}" ${act}><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></button>`;
+  let h=`<div class="pagehead"><div class="grow"><h2>Dashboard</h2><div class="muted small">As of ${fmtDate(today())} · cancelled orders excluded · <b>click any number to see the orders behind it</b></div></div></div>
+  <div class="kpis">
+   ${kpi('Orders',num(live.length),'all non-cancelled','data-act="drill" data-k="all"')}
+   ${kpi('Units sold',num(units),num(pending)+' still to dispatch','data-act="drill" data-k="units"')}
+   ${kpi('Sales billed',money(billed),'order amounts','data-act="drill" data-k="billed"')}
+   ${kpi('Received',money(rec),billed?Math.round(rec/billed*100)+'% collected':'','data-act="drill" data-k="received"','accent')}
+   ${kpi('Balance due',money(due),rows.filter(r=>r.c.balance>0).length+' orders','data-act="drill" data-k="due"','bad')}
+   ${kpi('Open orders',num(open),'need action','data-act="tab" data-tab="todo"')}
+   ${kpi('Next order no',nextNo(),'auto-filled on new order','data-act="new-order"','static')}
+  </div><div class="grid g2">`;
+
+  // delivery status
+  const dl=['Yet to Deliver','Dispatched','Part Delivered','Delivered','Cancelled',''];
+  h+=`<div class="card"><div class="ch"><h3>Delivery status</h3></div><div class="tw"><table><thead><tr><th>Status</th><th class="num">Orders</th><th class="num">Units</th><th class="num">Amount</th></tr></thead><tbody>`;
+  dl.forEach(s=>{const rs=rows.filter(r=>(r.o.status||'')===s);if(!rs.length&&s==='Part Delivered')return;
+    h+=`<tr class="click" data-act="drill" data-k="del" data-v="${esc(s)}"><td>${delBadge(s)}</td><td class="num">${rs.length}</td><td class="num">${num(sum(rs,r=>r.c.units))}</td><td class="num">${money(sum(rs,r=>r.c.amount))}</td></tr>`});
+  h+=`</tbody><tfoot><tr><td>All orders</td><td class="num">${rows.length}</td><td class="num">${num(sum(rows,r=>r.c.units))}</td><td class="num">${money(sum(rows,r=>r.c.amount))}</td></tr></tfoot></table></div></div>`;
+
+  // payment status
+  h+=`<div class="card"><div class="ch"><h3>Payment status</h3></div><div class="tw"><table><thead><tr><th>Status</th><th class="num">Orders</th><th class="num">Billed</th><th class="num">Balance due</th></tr></thead><tbody>`;
+  PAYSTAT.forEach(p=>{const rs=rows.filter(r=>r.c.pay===p);if(!rs.length&&p==='n/a')return;
+    h+=`<tr class="click" data-act="drill" data-k="pay" data-v="${p}"><td>${payBadge(p)}</td><td class="num">${rs.length}</td><td class="num">${money(sum(rs,r=>r.c.amount))}</td><td class="num">${money(sum(rs,r=>r.c.balance>0?r.c.balance:0))}</td></tr>`});
+  h+=`</tbody></table></div></div>`;
+
+  // products
+  h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>Products — units</h3><span class="muted small grow">cancelled excluded · click a number for its orders</span></div><div class="tw"><table><thead><tr><th>Product</th><th class="num">Rate</th><th class="num">Sold</th><th class="num">Delivered</th><th class="num">Dispatched</th><th class="num">To dispatch</th><th class="num">Status not set</th><th class="num">List value sold</th></tr></thead><tbody>`;
+  const tot={sold:0,delivered:0,dispatched:0,toDispatch:0,notSet:0,val:0};
+  DB.products.forEach(p=>{const t={sold:0,delivered:0,dispatched:0,toDispatch:0,notSet:0,val:0};
+    rows.forEach(r=>r.o.items.filter(i=>i.pid===p.id).forEach(i=>{const s=itemQtyState(r.o,i);for(const k in s)t[k]+=s[k];if(s.sold)t.val+=s.sold*(+i.rate||0)}));
+    if(!t.sold&&!p.active)return;for(const k in t)tot[k]+=t[k];
+    const cell=b=>t[b]?`<td class="num link" data-act="drill" data-k="pstate" data-v="${p.id}|${b}">${num(t[b])}</td>`:`<td class="num zero">0</td>`;
+    h+=`<tr><td class="link" data-act="drill" data-k="prod" data-v="${p.id}">${esc(p.name)}</td><td class="num">${money(p.rate)}</td>${cell('sold')}${cell('delivered')}${cell('dispatched')}${cell('toDispatch')}${cell('notSet')}<td class="num">${money(t.val)}</td></tr>`});
+  h+=`</tbody><tfoot><tr><td>Total</td><td></td><td class="num">${num(tot.sold)}</td><td class="num">${num(tot.delivered)}</td><td class="num">${num(tot.dispatched)}</td><td class="num">${num(tot.toDispatch)}</td><td class="num">${num(tot.notSet)}</td><td class="num">${money(tot.val)}</td></tr></tfoot></table></div></div>`;
+
+  // monthly
+  const months={};live.forEach(r=>{const k=r.o.date?r.o.date.slice(0,7):'undated';(months[k]=months[k]||[]).push(r)});
+  const mk=Object.keys(months).sort((a,b)=>a==='undated'?1:b==='undated'?-1:a.localeCompare(b));
+  const mx=Math.max(1,...mk.map(k=>sum(months[k],r=>r.c.amount)));
+  h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>Monthly summary</h3><span class="muted small grow">by order date · all months found in data</span><span class="small muted"><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:3px"></span> received &nbsp;<span style="display:inline-block;width:10px;height:10px;background:color-mix(in srgb,var(--accent) 35%,transparent);border-radius:3px"></span> billed</span></div><div class="tw"><table><thead><tr><th>Month</th><th class="num">Orders</th><th class="num">Units</th><th class="num">Billed</th><th class="num">Received</th><th class="num">Balance due</th><th style="width:30%"></th></tr></thead><tbody>`;
+  mk.forEach(k=>{const rs=months[k],b=sum(rs,r=>r.c.amount),rc=sum(rs,r=>r.c.received);
+    h+=`<tr class="click" data-act="drill" data-k="month" data-v="${k}"><td><b>${monthLabel(k)}</b></td><td class="num">${rs.length}</td><td class="num">${num(sum(rs,r=>r.c.units))}</td><td class="num">${money(b)}</td><td class="num">${money(rc)}</td><td class="num">${money(sum(rs,r=>r.c.balance>0?r.c.balance:0))}</td><td><div class="bar"><i style="width:${b/mx*100}%"></i><b style="width:${Math.min(rc,b)/mx*100}%"></b></div></td></tr>`});
+  h+=`</tbody><tfoot><tr><td>Total</td><td class="num">${live.length}</td><td class="num">${num(units)}</td><td class="num">${money(billed)}</td><td class="num">${money(rec)}</td><td class="num">${money(due)}</td><td></td></tr></tfoot></table></div></div>`;
+
+  // top outstanding customers
+  const cm={};rows.forEach(r=>{if(!(r.c.balance>0))return;const k=custKey(r.o);(cm[k]=cm[k]||{k,name:r.o.customer,phone:r.o.phone,bal:0,n:0});cm[k].bal+=r.c.balance;cm[k].n++});
+  const top=Object.values(cm).sort((a,b)=>b.bal-a.bal).slice(0,10);
+  h+=`<div class="card"><div class="ch"><h3>Biggest balances to collect</h3></div><div class="tw"><table><thead><tr><th>Customer</th><th class="num">Orders</th><th class="num">Balance</th></tr></thead><tbody>`;
+  h+=top.length?top.map(c=>`<tr class="click" data-act="open-cust" data-k="${esc(c.k)}"><td><b>${esc(c.name)}</b><div class="small muted">${esc(c.phone||'no phone')}</div></td><td class="num">${c.n}</td><td class="num" style="color:var(--bad);font-weight:700">${money(c.bal)}</td></tr>`).join(''):`<tr><td colspan="3" class="nodata">Nothing to collect 🎉</td></tr>`;
+  h+=`</tbody></table></div></div>`;
+
+  // ageing
+  const ag=[['0-7','0–7 days'],['8-15','8–15 days'],['16-30','16–30 days'],['31','Over 30 days']];
+  h+=`<div class="card"><div class="ch"><h3>Open orders by age</h3><span class="muted small grow">days since order date</span></div><div class="tw"><table><thead><tr><th>Age</th><th class="num">Orders</th><th class="num">Balance</th></tr></thead><tbody>`;
+  ag.forEach(([v,l])=>{const d=drill('age',v);const rs=rows.filter(r=>d.f(r.o));h+=`<tr class="click" data-act="drill" data-k="age" data-v="${v}"><td>${l}</td><td class="num">${rs.length}</td><td class="num">${money(sum(rs,r=>r.c.balance>0?r.c.balance:0))}</td></tr>`});
+  const und=rows.filter(r=>r.c.open&&r.c.daysOpen==null&&r.c.status!=='Delivered').length;
+  h+=`</tbody></table></div>${und?`<div class="cb small muted">+ ${und} open order(s) without an order date — see Data checks.</div>`:''}</div>`;
+
+  // payment modes
+  const pm={};live.forEach(r=>(r.o.payments||[]).forEach(p=>{const k=p.mode||'';pm[k]=pm[k]||{n:new Set(),amt:0};pm[k].n.add(r.o.id);pm[k].amt+=+p.amount||0}));
+  h+=`<div class="card"><div class="ch"><h3>Money received by mode</h3></div><div class="tw"><table><thead><tr><th>Mode</th><th class="num">Orders</th><th class="num">Amount</th></tr></thead><tbody>`;
+  const pmk=Object.keys(pm).sort((a,b)=>pm[b].amt-pm[a].amt);
+  h+=pmk.length?pmk.map(k=>`<tr class="click" data-act="drill" data-k="mode" data-v="${esc(k)}"><td>${esc(k||'(no mode)')}</td><td class="num">${pm[k].n.size}</td><td class="num">${money(pm[k].amt)}</td></tr>`).join(''):`<tr><td colspan="3" class="nodata">No payments yet</td></tr>`;
+  h+=`</tbody></table></div></div>`;
+
+  // offers / discounts
+  const ofr={};live.forEach(r=>{const k=r.o.offer||'';ofr[k]=ofr[k]||{n:0,disc:0};ofr[k].n++;ofr[k].disc+=r.c.discount>0?r.c.discount:0});
+  const totDisc=sum(live,r=>r.c.discount>0?r.c.discount:0);
+  h+=`<div class="card"><div class="ch"><h3>Offers &amp; discounts</h3><span class="grow"></span><span class="link small" data-act="drill" data-k="disc">${money(totDisc)} given below list</span></div><div class="tw"><table><thead><tr><th>Offer / reason</th><th class="num">Orders</th><th class="num">Below list value</th></tr></thead><tbody>`;
+  h+=Object.keys(ofr).sort((a,b)=>ofr[b].n-ofr[a].n).map(k=>`<tr class="click" data-act="drill" data-k="offer" data-v="${esc(k)}"><td>${esc(k||'(none)')}</td><td class="num">${ofr[k].n}</td><td class="num">${money(ofr[k].disc)}</td></tr>`).join('');
+  h+=`</tbody></table></div></div>`;
+
+  // data checks
+  const x=buildCtx();
+  h+=`<div class="card"><div class="ch"><h3>Data checks</h3><span class="muted small grow">things to fix</span></div><div class="tw"><table><tbody>`;
+  CHECKS.forEach(ck=>{const n=rows.filter(r=>ck.t(r.o,r.c,x)).length;
+    h+=`<tr class="${n?'click':''}" ${n?`data-act="drill" data-k="check" data-v="${ck.id}"`:''}><td>${ck.label}</td><td class="num">${n?`<span class="b ${ck.lvl}">${n}</span>`:'<span class="zero">0</span>'}</td></tr>`});
+  const gaps=orderGaps();
+  h+=`<tr class="${gaps.length?'click':''}" ${gaps.length?'data-act="gaps"':''}><td>Skipped order numbers</td><td class="num">${gaps.length?`<span class="b warn">${gaps.length}</span>`:'<span class="zero">0</span>'}</td></tr>`;
+  h+=`</tbody></table></div></div>`;
+  h+=`</div>`;
+  return h;
+}
+
+/* ============ To Do ============ */
+const TODO_CHIPS=[
+  ['all','All open',c=>c.open],
+  ['dispatch','To dispatch',(c)=>!c.cancelled&&(c.status==='Yet to Deliver'||c.status==='Part Delivered')],
+  ['transit','Awaiting delivery',c=>c.status==='Dispatched'],
+  ['collect','Collect payment',c=>c.balance>0],
+  ['confirm','Confirm amount',c=>c.next==='Confirm amount'],
+  ['nostatus','Set status',c=>!c.cancelled&&!c.status],
+  ['late','Open > 7 days',c=>c.open&&c.daysOpen>7],
+];
+function todoView(){
+  const rows=DB.orders.map(o=>({o,c:calc(o)}));
+  const chip=TODO_CHIPS.find(t=>t[0]===UI.todoChip)||TODO_CHIPS[0];
+  const list=rows.filter(r=>chip[2](r.c)).sort((a,b)=>(b.c.daysOpen??-1)-(a.c.daysOpen??-1)||(a.o.date||'9').localeCompare(b.o.date||'9')||a.o.no-b.o.no);
+  const due=list.reduce((s,r)=>s+(r.c.balance>0?r.c.balance:0),0);
+  const pend={};list.forEach(r=>r.o.items.forEach(i=>{const t=itemQtyState(r.o,i).toDispatch;if(t)pend[i.pid]=(pend[i.pid]||0)+t}));
+  let h=`<div class="pagehead"><div class="grow"><h2>To Do</h2><div class="muted small">Every order that is not fully delivered AND paid — oldest first. Act on it right here.</div></div><button class="btn sm" onclick="window.print()">Print list</button></div>
+  <div class="chips">${TODO_CHIPS.map(t=>`<button class="chip ${t[0]===chip[0]?'on':''}" data-act="todo-chip" data-v="${t[0]}">${t[1]}<span class="n">${rows.filter(r=>t[2](r.c)).length}</span></button>`).join('')}</div>
+  <div class="notice"><span>Showing <b>${list.length}</b> order(s) · balance to collect <b style="color:var(--bad)">${money(due)}</b>${Object.keys(pend).length?' · to dispatch: '+Object.entries(pend).map(([p,q])=>`<b>${q} × ${esc(prodName({pid:p}))}</b>`).join(', '):''}</span></div><div class="todo">`;
+  if(!list.length)h+=`<div class="card nodata">Nothing here — all caught up ✓</div>`;
+  list.forEach(({o,c})=>{
+    const cls=c.daysOpen==null?'':c.daysOpen>15?'late':c.daysOpen>7?'mid':'fresh';
+    h+=`<div class="tcard ${cls}">
+      <div><div class="top"><span class="b accent">#${o.no}</span>${pendBadge(o)}<span class="who" data-act="open-order" data-id="${o.id}">${esc(o.customer)}</span>${delBadge(c.status)}${payBadge(c.pay)}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div>
+      <div class="meta">${fmtDate(o.date)} · ${esc(itemsText(o))} · ${o.phone?esc(o.phone):'<i>no phone</i>'}</div>
+      <div class="meta"><b style="color:var(--text)">Next:</b> ${esc(c.next)}</div></div>
+      <div class="amt"><div class="small muted">Amount ${money(c.amount)}</div>${c.balance>0?`<div class="due">${money(c.balance)} due</div>`:c.amount==null?'<div class="b warn">Amount TBC</div>':'<div class="b ok">Paid</div>'}</div>
+      <div class="acts">${quickActions(o,c)}</div></div>`});
+  return h+`</div>`;
+}
+function quickActions(o,c,big){
+  const a=[];const sm=big?'':'sm';
+  if(!c.cancelled){
+    if(c.status!=='Dispatched'&&c.status!=='Delivered')a.push(`<button class="btn ${sm}" data-act="set-status" data-id="${o.id}" data-s="Dispatched">🚚 Mark dispatched</button>`);
+    if(c.status!=='Delivered')a.push(`<button class="btn ${sm}" data-act="set-status" data-id="${o.id}" data-s="Delivered">✓ Mark delivered</button>`);
+    if(c.balance>0||c.amount!=null)a.push(`<button class="btn ${sm} ${c.balance>0?'primary':''}" data-act="pay-order" data-id="${o.id}">₹ Record payment</button>`);
+    if(c.amount==null)a.push(`<button class="btn ${sm} primary" data-act="edit-order" data-id="${o.id}">Confirm amount</button>`);
+  }
+  const ph=waNum(o.phone);
+  if(ph.length>=10){
+    a.push(`<a class="btn ${sm}" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(waText(o,c))}">💬 WhatsApp</a>`);
+    a.push(`<a class="btn ${sm}" href="tel:+${ph}">📞 Call</a>`);
+  }
+  if(!big)a.push(`<button class="btn ${sm} ghost" data-act="open-order" data-id="${o.id}">Details →</button>`);
+  return a.join('');
+}
+function waText(o,c){
+  const name=String(o.customer||'').replace(/\s*\(.*?\)\s*/g,' ').trim();
+  if(c.balance>0)return`Hello ${name}, greetings from PEPAL!\nThis is a gentle reminder for your order #${o.no} dated ${fmtDate(o.date)} (${itemsText(o)}).\nOrder amount: ${money(c.amount)}\nReceived: ${money(c.received)}\nBalance due: ${money(c.balance)}\nThank you!`;
+  return`Hello ${name}, greetings from PEPAL!\nUpdate on your order #${o.no} (${itemsText(o)}): ${c.status||'being processed'}.\nThank you for choosing PEPAL!`;
+}
+
+/* ============ Orders table ============ */
+function filteredOrders(){
+  const f=UI.of,q=f.q.trim().toLowerCase(),qd=digits(q);
+  const d=f.drill?drill(f.drill.k,f.drill.v):null;
+  return DB.orders.map(o=>({o,c:calc(o)})).filter(({o,c})=>{
+    if(d&&!d.f(o))return false;
+    if(q){const hay=(o.no+' '+o.customer+' '+o.phone+' '+o.notes+' '+o.offer+' '+itemsText(o)).toLowerCase();
+      if(!(hay.includes(q)||(qd.length>=3&&digits(o.phone).includes(qd))||String(o.no)===q.replace('#','')))return false}
+    if(f.del!=='*'&&(o.status||'')!==f.del)return false;
+    if(f.pay!=='*'&&c.pay!==f.pay)return false;
+    if(f.month!=='*'&&(f.month==='undated'?o.date:(o.date||'').slice(0,7)!==f.month))return false;
+    if(f.prod!=='*'&&!o.items.some(i=>i.pid===f.prod&&+i.qty>0))return false;
+    if(f.open&&!c.open)return false;
+    return true});
+}
+const OCOLS=[['no','#',r=>r.o.no],['date','Date',r=>r.o.date||''],['customer','Customer',r=>(r.o.customer||'').toLowerCase()],['items','Items',r=>r.c.units],['amount','Amount',r=>r.c.amount??-1],['received','Received',r=>r.c.received],['balance','Balance',r=>r.c.balance??-1],['pay','Payment',r=>r.c.pay],['status','Delivery',r=>r.c.status],['next','Next action',r=>r.c.next],['days','Days open',r=>r.c.daysOpen??-1]];
+function ordersView(){
+  const f=UI.of;const rows=filteredOrders();const sc=OCOLS.find(c=>c[0]===UI.sort.col)||OCOLS[0];
+  rows.sort((a,b)=>{const x=sc[2](a),y=sc[2](b);return(x<y?-1:x>y?1:0)*UI.sort.dir||b.o.no-a.o.no});
+  const months=[...new Set(DB.orders.map(o=>o.date?o.date.slice(0,7):'undated'))].sort();
+  const opt=(v,l,cur)=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(l)}</option>`;
+  const S=(a,f)=>a.reduce((s,r)=>s+(f(r)||0),0);
+  let h=`<div class="pagehead"><div class="grow"><h2>Orders</h2><div class="muted small">${rows.length} of ${DB.orders.length} orders · click a row for full details</div></div>
+   <button class="btn" data-act="export-xlsx" data-scope="filtered">⬇ Export these to Excel</button><button class="btn primary" data-act="new-order">+ New order</button></div>
+  ${f.drill?`<div class="notice">Showing: <b>${esc(drill(f.drill.k,f.drill.v).t)}</b> <button class="btn sm" data-act="clear-drill">✕ clear</button></div>`:''}
+  <div class="filters">
+   <input type="search" id="oq" placeholder="Search…" value="${esc(f.q)}" style="min-width:200px">
+   <select data-of="del">${opt('*','All delivery',f.del)}${DELIVERY.map(s=>opt(s,s,f.del)).join('')}${opt('','Status not set',f.del)}</select>
+   <select data-of="pay">${opt('*','All payment',f.pay)}${PAYSTAT.map(s=>opt(s,s,f.pay)).join('')}</select>
+   <select data-of="month">${opt('*','All months',f.month)}${months.map(m=>opt(m,monthLabel(m),f.month)).join('')}</select>
+   <select data-of="prod">${opt('*','All products',f.prod)}${DB.products.map(p=>opt(p.id,p.name,f.prod)).join('')}</select>
+   <label class="chip ${f.open?'on':''}" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" data-of="open" ${f.open?'checked':''} style="display:none">Open only</label>
+   ${(f.q||f.del!=='*'||f.pay!=='*'||f.month!=='*'||f.prod!=='*'||f.open||f.drill)?'<button class="btn sm ghost" data-act="reset-filters">Reset</button>':''}
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>${OCOLS.map(c=>`<th class="sort ${['amount','received','balance','days','items'].includes(c[0])?'num':''}" data-act="sort" data-col="${c[0]}">${c[1]}${UI.sort.col===c[0]?(UI.sort.dir>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>`;
+  h+=rows.length?rows.map(({o,c})=>`<tr class="click" data-act="open-order" data-id="${o.id}">
+    <td><b>${o.no}</b>${pendBadge(o,1)}</td><td style="white-space:nowrap">${fmtDate(o.date)}</td>
+    <td><b>${esc(o.customer)}</b>${hasCheck(o)?' <span class="b warn">CHECK</span>':''}<div class="small muted">${esc(o.phone||'')}</div></td>
+    <td class="small">${esc(itemsText(o))}</td><td class="num">${money(c.amount)}</td><td class="num">${money(c.received)}</td>
+    <td class="num" style="${c.balance>0?'color:var(--bad);font-weight:700':''}">${money(c.balance)}</td>
+    <td>${payBadge(c.pay)}</td><td>${delBadge(c.status)}</td><td>${nextBadge(c.next)}</td><td class="num">${c.daysOpen==null?'':`<span style="${c.daysOpen>7?'color:var(--bad);font-weight:700':''}">${c.daysOpen}</span>`}</td></tr>`).join('')
+   :`<tr><td colspan="11" class="nodata">No orders match these filters.</td></tr>`;
+  h+=`</tbody><tfoot><tr><td colspan="3">${rows.length} orders</td><td class="num">${num(S(rows,r=>r.c.units))} units</td><td class="num">${money(S(rows,r=>r.c.amount))}</td><td class="num">${money(S(rows,r=>r.c.received))}</td><td class="num">${money(S(rows,r=>r.c.balance>0?r.c.balance:0))}</td><td colspan="4"></td></tr></tfoot></table></div></div>`;
+  return h;
+}
+
+/* ============ Customers ============ */
+function customerGroups(){
+  const g={};const mk=k=>g[k]=g[k]||{k,names:new Map(),phone:'',orders:[],units:0,billed:0,rec:0,bal:0,last:'',open:0,cust:null};
+  DB.orders.forEach(o=>{const c=calc(o),x=mk(custKey(o));
+    x.names.set(normName(o.customer),o.customer);x.orders.push(o);if(!x.phone&&o.phone)x.phone=o.phone;
+    if(!c.cancelled){x.units+=c.units;x.billed+=c.amount||0;x.rec+=c.received}
+    if(c.balance>0)x.bal+=c.balance;if(c.open)x.open++;if((o.date||'')>x.last)x.last=o.date||''});
+  (DB.customers||[]).forEach(c=>{const x=mk(phoneKey(c.phone)||('n:'+String(c.name||'').toLowerCase().trim()));
+    x.cust=c;if(c.phone)x.phone=x.phone||c.phone;if(!x.names.size)x.names.set(normName(c.name),c.name)});
+  return Object.values(g).map(x=>{x.name=x.cust?x.cust.name:[...x.names.values()][0];x.alias=[...x.names.values()].filter(n=>normName(n)!==normName(x.name));return x});
+}
+function findCustomer(name,phone){
+  const pk=phoneKey(phone),nm=String(name||'').trim().toLowerCase();
+  return (DB.customers||[]).find(c=>(pk.length===10&&phoneKey(c.phone)===pk)||(String(c.name||'').trim().toLowerCase()===nm&&(!pk||!phoneKey(c.phone))));
+}
+function ensureCustomer(name,phone){
+  if(!String(name||'').trim()||findCustomer(name,phone))return;
+  queueOp({type:'customer.add',customer:{id:uid('c'),name:String(name).trim(),phone:String(phone||'').trim(),place:'',notes:''}});
+}
+function customersView(){
+  const q=UI.custQ.toLowerCase();let cs=customerGroups().filter(c=>!q||(c.name+' '+c.alias.join(' ')+' '+c.phone+' '+((c.cust&&c.cust.place)||'')).toLowerCase().includes(q)||(digits(q).length>=3&&digits(c.phone).includes(digits(q))));
+  const so={balance:(a,b)=>b.bal-a.bal||b.billed-a.billed,billed:(a,b)=>b.billed-a.billed,orders:(a,b)=>b.orders.length-a.orders.length,last:(a,b)=>b.last.localeCompare(a.last),name:(a,b)=>a.name.localeCompare(b.name)};
+  cs.sort(so[UI.custSort]);
+  const rep=cs.filter(c=>c.orders.length>1).length;
+  let h=`<div class="pagehead"><div class="grow"><h2>Customers</h2><div class="muted small">${cs.length} customers · ${rep} repeat buyers · grouped by phone number (or name when no phone)</div></div><button class="btn primary" data-act="add-customer">+ Add customer</button></div>
+  <div class="filters"><input type="search" id="cq" placeholder="Search name, phone or place…" value="${esc(UI.custQ)}" style="min-width:240px">
+  <select id="csort">${[['balance','Sort: balance due'],['billed','Sort: total billed'],['orders','Sort: no. of orders'],['last','Sort: last order'],['name','Sort: name']].map(([v,l])=>`<option value="${v}" ${UI.custSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Customer</th><th>Phone</th><th class="num">Orders</th><th class="num">Units</th><th class="num">Billed</th><th class="num">Received</th><th class="num">Balance</th><th>Last order</th></tr></thead><tbody>`;
+  h+=cs.map(c=>`<tr class="click" data-act="open-cust" data-k="${esc(c.k)}"><td><b>${esc(c.name)}</b>${c.cust&&c.cust.place?` <span class="small muted">· ${esc(c.cust.place)}</span>`:''}${c.alias.length?`<div class="small" style="color:var(--warn)">also as: ${esc(c.alias.join(', '))}</div>`:''}${c.open?` <span class="b info">${c.open} open</span>`:''}${!c.orders.length?' <span class="b">no orders yet</span>':''}</td><td>${esc(c.phone||'—')}</td><td class="num">${c.orders.length}</td><td class="num">${num(c.units)}</td><td class="num">${money(c.billed)}</td><td class="num">${money(c.rec)}</td><td class="num" style="${c.bal>0?'color:var(--bad);font-weight:700':''}">${money(c.bal)}</td><td>${fmtDate(c.last)}</td></tr>`).join('')||`<tr><td colspan="8" class="nodata">No customers</td></tr>`;
+  return h+`</tbody></table></div></div>`;
+}
+function customerForm(cid,preset){
+  const c=cid?(DB.customers.find(x=>x.id===cid)||{}):Object.assign({name:'',phone:'',place:'',notes:''},preset||{});
+  openModal(`<div class="mh"><h3>${cid?'Edit customer':'Add customer'}</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><div class="form">
+   <div class="field" style="grid-column:span 2"><label>Name *</label><input id="c_name" value="${esc(c.name)}" autofocus></div>
+   <div class="field"><label>Phone</label><input id="c_phone" value="${esc(c.phone||'')}" inputmode="tel"></div>
+   <div class="field"><label>Place / city</label><input id="c_place" value="${esc(c.place||'')}"></div>
+   <div class="field wide"><label>Notes</label><textarea id="c_notes" rows="2">${esc(c.notes||'')}</textarea></div>
+  </div><div class="hint" id="c_err" style="margin-top:8px;color:var(--bad)"></div></div>
+  <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="c_ok">${cid?'Save':'Add customer'}</button></div>`,'narrow');
+  $('#c_ok').onclick=()=>{
+    const name=$('#c_name').value.trim(),phone=$('#c_phone').value.trim();
+    if(!name){$('#c_err').textContent='Name is required.';return}
+    const d=digits(phone);if(d&&!(d.length===10||(d.length===12&&d.startsWith('91')))){$('#c_err').textContent='Phone should have 10 digits.';return}
+    const dup=(DB.customers||[]).find(x=>x.id!==cid&&((phoneKey(phone).length===10&&phoneKey(x.phone)===phoneKey(phone))||x.name.trim().toLowerCase()===name.toLowerCase()));
+    if(dup){$('#c_err').textContent='Already in the customer list: '+dup.name+(dup.phone?' ('+dup.phone+')':'');return}
+    const rec={name,phone,place:$('#c_place').value.trim(),notes:$('#c_notes').value.trim()};
+    closeModal();
+    if(cid)queueOp({type:'customer.update',customer:Object.assign({id:cid},rec)},'Customer saved');
+    else queueOp({type:'customer.add',customer:Object.assign({id:uid('c')},rec)},'Customer added');
+  };
+}
+
+/* ============ render: shell ============ */
+function refresh(){
+  document.body.classList.toggle('locked',!signedIn());
+  document.body.classList.toggle('admin',isAdmin());
+  renderHeader();renderTab();if(drawerStack.length)renderDrawer();
+}
+function $(s){return document.querySelector(s)}
+const hhmm=iso=>iso?new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
+function syncState(){
+  if(ISSUES.length)return{c:'bad',t:ISSUES.length+' sync issue'+(ISSUES.length>1?'s':'')+' — fix'};
+  if(SYNC.busy)return{c:'warn',t:'Syncing…'};
+  if(SYNC.offline)return{c:'off',t:'Offline'+(QUEUE.length?' · '+QUEUE.length+' waiting':'')};
+  if(SYNC.err)return{c:'bad',t:'Sync error'+(QUEUE.length?' · '+QUEUE.length+' waiting':'')};
+  if(QUEUE.length)return{c:'warn',t:QUEUE.length+' waiting to sync'};
+  return{c:'ok',t:SYNC.last?'Synced '+hhmm(SYNC.last):'Not synced yet'};
+}
+function renderHeader(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===UI.tab));
+  const open=DB.orders.filter(o=>calc(o).open).length;$('#todoCount').textContent=open;
+  const st=syncState(),pill=$('#syncPill');pill.className='pill '+st.c;$('#syncTxt').textContent=st.t;
+  pill.title=SYNC.err||(SYNC.offline?'No internet. Your changes are saved on this device and will upload automatically.':'Click to sync now');
+  $('#userTxt').textContent=CFG.user||'';$('#userChip').title='Signed in as '+(CFG.user||'')+' ('+(CFG.role||'')+') — click for account';
+  const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+  $('#themeBtn').innerHTML=dark?'☀︎':'☾';$('#themeBtn').title=dark?'Switch to light mode':'Switch to dark mode';
+}
+function renderTab(){
+  const m=$('#main');
+  if(!signedIn()){m.innerHTML=loginView();setTimeout(()=>{const f=$('#l_user');if(f&&!f.value)f.focus();else if($('#l_pw'))$('#l_pw').focus()},30);return}
+  if(!CACHE){m.innerHTML=`<div class="empty"><div class="card"><h2>${SYNC.offline?'Can’t reach the cloud':'Loading from cloud…'}</h2><p class="muted">${SYNC.offline?'This device has no saved copy yet. Connect to the internet and try again.':'Getting the latest data.'}</p>${SYNC.err?`<p class="hint" style="color:var(--bad)">${esc(SYNC.err)}</p>`:''}<button class="btn" data-act="sync-now">Try again</button></div></div>`;return}
+  if(UI.tab==='log'&&!isAdmin())UI.tab='dash';
+  if(!DB.orders.length&&['dash','todo','orders'].includes(UI.tab)){m.innerHTML=emptyView();return}
+  m.innerHTML={dash:dashView,todo:todoView,orders:ordersView,customers:customersView,log:logView,settings:settingsView}[UI.tab]();
+}
+function oldLocalData(){const d=jget(OLDKEY,null);return d&&Array.isArray(d.orders)&&d.orders.length?d:null}
+function emptyView(){
+  const old=isAdmin()&&oldLocalData();
+  if(!isAdmin())return`<div class="empty"><div class="card"><h2>No orders yet</h2><p class="muted">${DB.products.length?'Create the first order with “+ New order”.':'ADMIN has to add products (or import the Excel tracker) before orders can be created.'}</p>${DB.products.length?'<button class="btn primary" data-act="new-order">+ New order</button>':''}</div></div>`;
+  return`<div class="empty"><div class="card">
+  <div class="logo" style="width:48px;height:48px;margin:0 auto 10px;font-size:22px">P</div>
+  <h2>The cloud has no orders yet</h2>
+  <p class="muted">Bring your data in once — everyone signed in will then see it:</p>
+  <div class="opts">
+    ${old?`<div class="opt" data-act="upload-old"><b>☁️ Upload this browser's data</b><span class="muted small">${old.orders.length} orders from the earlier offline version are still in this browser.</span></div>`:''}
+    <div class="opt" data-act="import-xlsx"><b>📥 Import Excel tracker</b><span class="muted small">Pick the PEPAL Order Tracker .xlsx — orders, rates, payment modes, offers and customers are read in.</span></div>
+    <div class="opt" data-act="restore"><b>♻️ Restore a backup</b><span class="muted small">Load a .json backup made from this tool (you'll see a summary first).</span></div>
+    <div class="opt" data-act="tab" data-tab="settings"><b>✏️ Start fresh</b><span class="muted small">Add your products &amp; rates in Settings, then create orders.</span></div>
+  </div></div></div>`;
+}
+function loginView(){
+  const waiting=QUEUE.length;
+  return`<div class="empty"><div class="card" style="max-width:420px;margin:0 auto;text-align:left">
+   <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px"><div class="logo" style="width:42px;height:42px;font-size:20px">P</div><div><h2 style="margin:0">Sign in</h2><div class="muted small">PEPAL Order Desk</div></div></div>
+   <form id="loginForm" class="form" style="grid-template-columns:1fr" onsubmit="return false">
+    ${DEFAULT_API_URL?'':`<div class="field"><label>Cloud link <span class="faint">(Apps Script Web app URL — ask ADMIN)</span></label><input id="l_api" value="${esc(CFG.api||'')}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>`}
+    <div class="field"><label>User name</label><input id="l_user" value="${esc(CFG.user||'')}" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="l_pw" type="password" autocomplete="current-password"></div>
+    <div class="hint" id="l_err" style="color:var(--bad)"></div>
+    <button class="btn primary" id="l_go" data-act="login" style="justify-content:center;padding:10px">Sign in</button>
+   </form>
+   <p class="small muted" style="margin-bottom:0">You stay signed in on this device until you log out.${waiting?` <b style="color:var(--warn)">${waiting} change(s) made on this device are waiting and will upload after sign-in.</b>`:''}</p>
+  </div></div>`;
+}
+async function doLogin(){
+  const api_=$('#l_api')?$('#l_api').value.trim():'',user=$('#l_user').value.trim(),pw=$('#l_pw').value;
+  const err=m=>{$('#l_err').textContent=m};
+  if(!DEFAULT_API_URL){if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(api_))return err('Paste the Apps Script Web app link (starts with https://script.google.com/…).');CFG.api=api_}
+  if(!user||!pw)return err('Enter user name and password.');
+  $('#l_go').disabled=true;$('#l_go').textContent='Signing in…';
+  try{
+    const ua=navigator.userAgent,dev=(/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iPhone/iPad':/Windows/.test(ua)?'Windows':/Mac/.test(ua)?'Mac':'Device')+' · '+(/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Firefox\//.test(ua)?'Firefox':/Safari\//.test(ua)?'Safari':'Browser');
+    const r=await api('login',{user,password:pw,device:dev});
+    if(!r.ok){err(r.error||'Sign in failed');return}
+    const prevUser=CFG.user;
+    if(QUEUE.length&&prevUser&&prevUser.toLowerCase()!==r.user.toLowerCase()){
+      const keep=await confirmBox('Changes from '+prevUser,`${QUEUE.length} change(s) made on this device by <b>${esc(prevUser)}</b> have not been uploaded yet. Upload them now? They will be logged under <b>${esc(r.user)}</b>.`,'Upload them');
+      if(!keep){QUEUE=[];ISSUES=[]}
+    }
+    if(prevUser&&prevUser.toLowerCase()!==r.user.toLowerCase()){CACHE=null;ISSUES=[];LOGS=null;USERS=null}
+    Object.assign(CFG,{token:r.token,user:r.user,role:r.role});persist();buildView();refresh();
+    await sync();toast('Welcome, '+r.user);
+  }catch(e){err(e.offline?'No internet — sign in needs a connection the first time.':e.message)}
+  finally{const b=$('#l_go');if(b){b.disabled=false;b.textContent='Sign in'}}
+}
+function accountBox(){
+  openModal(`<div class="mh"><h3>👤 ${esc(CFG.user)}</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><div class="kv"><div><div class="k">Role</div><div class="v">${isAdmin()?'Admin':'Staff'}</div></div><div><div class="k">Sync</div><div class="v">${esc(syncState().t)}</div></div><div><div class="k">Waiting changes</div><div class="v">${QUEUE.length}</div></div></div>
+  <p class="small muted">Staying signed in on this device until you log out. Logging out removes this device's copy of the data (it stays safe in the cloud).</p></div>
+  <div class="mf"><button class="btn" data-act="sync-now">⟳ Sync now</button><button class="btn danger" data-act="logout">Log out</button></div>`,'narrow');
+}
+async function doLogout(){
+  if(QUEUE.length){
+    closeModal();
+    const go=await confirmBox('Changes not uploaded yet',`${QUEUE.length} change(s) on this device have not reached the cloud yet${SYNC.offline?' (you are offline)':''}. If you log out now they will be <b>lost</b>.`,'Log out and lose them',true);
+    if(!go)return;
+  }
+  try{if(!SYNC.offline)await api('logout')}catch(e){}
+  CFG.token=null;CACHE=null;QUEUE=[];ISSUES=[];LOGS=null;USERS=null;persist();buildView();closeModal();closeDrawer();refresh();
+}
+
+/* ============ sync issues (conflicts) ============ */
+function opText(op){
+  const o=op.order||byId(op.orderId)||{};
+  const t={'order.upsert':op.create?'New order':'Edit of order','order.delete':'Delete of order','order.status':'Status change on order','order.patch':'Update of order','payment.add':'Payment on order','payment.del':'Payment removal on order','customer.add':'New customer','customer.update':'Edit of customer','customer.delete':'Delete of customer','master.set':'Change of products / lists'}[op.type]||op.type;
+  if(op.customer)return t+' '+op.customer.name;
+  return t+(o.no?' #'+o.no:'')+(o.customer?' · '+o.customer:'');
+}
+function shortOrder(o,other){if(!o)return'—';const c=calc(o);let t=`#${o.no} · ${esc(o.customer)} · ${esc(itemsText(o))} · ${money(c.amount)} · ${esc(o.status||'status not set')} · received ${money(c.received)}`;
+  if(other){const x=[];['date','phone','offer','disc','flat','override','deliveryDate','notes','payMode'].forEach(k=>{if(String(o[k]??'')!==String(other[k]??''))x.push(k==='notes'?'notes: “'+esc(String(o.notes||'—').slice(0,80))+'”':k+': '+esc(o[k]||'—'))});if(x.length)t+=' · <b>'+x.join(' · ')+'</b>'}
+  return t}
+function openIssues(){
+  const main=ISSUES.filter(x=>!x.r.waitFor);
+  const deps=id=>ISSUES.filter(x=>x.r.waitFor&&x.r.waitFor===id).length;
+  if(!ISSUES.length){closeModal();toast('No sync issues');return}
+  openModal(`<div class="mh"><h3>Sync issues (${ISSUES.length})</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><p class="muted small" style="margin-top:0">These changes reached the cloud but could not be applied as they were. Pick a fix — nothing is lost until you choose “Discard”.</p>
+  ${main.map(is=>{const op=is.op,r=is.r,o=op.order||{},oid=op.orderId||o.id,dn=deps(oid);let body='',btns='';
+    if(r.conflict==='dupNo'){const nx=Math.max(nextNo(),r.nextNo||0);
+      body=`Your ${op.create?'new order':'order'} <b>${esc(o.customer)}</b> (${esc(itemsText(o))}) uses <b>#${o.no}</b>, but that number is already taken${r.takenBy?' by <b>'+esc(r.takenBy)+'</b>':''}.`;
+      btns=`<button class="btn primary" data-act="iss-fix" data-i="${is.id}" data-how="next" data-v="${nx}">Use #${nx} (next free)</button><span class="listrow"><input type="number" id="pick_${is.id}" placeholder="other no." style="width:110px;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;background:var(--surface)"><button class="btn" data-act="iss-fix" data-i="${is.id}" data-how="pick">Use this number</button></span><button class="btn danger" data-act="iss-fix" data-i="${is.id}" data-how="discard">Discard my order</button>`}
+    else if(r.conflict==='edited'){
+      body=`<b>${esc(opText(op))}</b> — ${esc(r.error)}<div class="small" style="margin-top:6px"><div><b>Their version:</b> ${shortOrder(r.server,o)}</div><div><b>Your version:</b> ${shortOrder(o,r.server)}</div></div>`;
+      btns=`<button class="btn primary" data-act="iss-fix" data-i="${is.id}" data-how="mine">Keep my version</button><button class="btn" data-act="iss-fix" data-i="${is.id}" data-how="discard">Keep their version</button>`}
+    else if(r.conflict==='gone'&&op.type==='order.upsert'){
+      body=`<b>${esc(opText(op))}</b> — ${esc(r.error)}`;
+      btns=`<button class="btn primary" data-act="iss-fix" data-i="${is.id}" data-how="recreate">Re-create it with my changes</button><button class="btn" data-act="iss-fix" data-i="${is.id}" data-how="discard">Leave it deleted</button>`}
+    else{body=`<b>${esc(opText(op))}</b> — ${esc(r.error||'Could not be applied')}`;btns=`<button class="btn" data-act="iss-fix" data-i="${is.id}" data-how="discard">Dismiss</button>`}
+    return`<div class="card" style="margin-bottom:10px;border-left:4px solid var(--bad)"><div class="cb"><div class="small faint">${new Date(is.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})} · by ${esc(op.by||'')}</div><div style="margin:6px 0 10px">${body}${dn?`<div class="small muted" style="margin-top:6px">+ ${dn} linked change(s) (payment / status) will follow automatically.</div>`:''}</div><div class="actions">${btns}</div></div></div>`}).join('')}
+  </div><div class="mf"><button class="btn" data-act="modal-close">Close</button></div>`);
+}
+function fixIssue(iid,how,val){
+  const is=ISSUES.find(x=>x.id===iid);if(!is)return;
+  const op=clone(is.op),oid=op.orderId||(op.order&&op.order.id);
+  const deps=ISSUES.filter(x=>x!==is&&x.r.waitFor&&x.r.waitFor===oid);
+  ISSUES=ISSUES.filter(x=>x!==is&&!deps.includes(x));
+  if(how!=='discard'){
+    if(how==='next'||how==='pick'){const n=parseInt(val,10);if(!n||n<1){ISSUES.push(is,...deps);toast('Enter a valid order number');return}op.order.no=n}
+    if(how==='mine')op.force=true;
+    if(how==='recreate'){op.create=true;op.force=true}
+    op.id=uid('op');QUEUE.push(op);
+    deps.forEach(dp=>{const o2=clone(dp.op);o2.id=uid('op');QUEUE.push(o2)});
+  }
+  persist();buildView();refresh();
+  if(ISSUES.length)openIssues();else closeModal();
+  if(how!=='discard')sync();
+}
+
+/* ============ Activity log (admin) ============ */
+let LOGS=null,LOGERR='',LOGF={user:'*',act:'*',q:'',days:'*'},LOGLIMIT=300;
+async function loadLogs(){
+  LOGERR='';const r=await apiOrToast('logs');LOGS=r.ok?r.logs:[];if(!r.ok)LOGERR=r.error||'Could not load the log';
+  if(UI.tab==='log')refresh();
+}
+function logView(){
+  if(LOGS===null){loadLogs();return`<div class="pagehead"><div class="grow"><h2>Activity log</h2></div></div><div class="card nodata">Loading the log from the cloud…</div>`}
+  const users=[...new Set(LOGS.map(e=>e.user))].sort(),acts=[...new Set(LOGS.map(e=>e.act))].sort();
+  const q=LOGF.q.toLowerCase(),cut=LOGF.days==='*'?'':new Date(Date.now()-(+LOGF.days)*864e5).toISOString();
+  const rows=LOGS.filter(e=>(LOGF.user==='*'||e.user===LOGF.user)&&(LOGF.act==='*'||e.act===LOGF.act)&&(!cut||e.at>=cut)&&(!q||(e.ref+' '+e.detail+' '+e.act+' '+e.user).toLowerCase().includes(q)));
+  const opt=(v,l,cur)=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(l)}</option>`;
+  const actC=a=>/deleted|removed|DELETED|cleared/i.test(a)?'bad':/created|added|restored/i.test(a)?'ok':/Payment/.test(a)?'info':/Signed/.test(a)?'':'warn';
+  let h=`<div class="pagehead"><div class="grow"><h2>Activity log</h2><div class="muted small">Who did what and when — written by the cloud, so it can't be edited from the tool. ${LOGS.length} entries kept.</div></div><button class="btn" data-act="log-reload">⟳ Reload</button></div>
+  ${LOGERR?`<div class="notice" style="color:var(--bad)">${esc(LOGERR)}</div>`:''}
+  <div class="filters">
+   <input type="search" id="logq" placeholder="Search order no, customer, detail…" value="${esc(LOGF.q)}" style="min-width:220px">
+   <select data-logf="user">${opt('*','All users',LOGF.user)}${users.map(u=>opt(u,u,LOGF.user)).join('')}</select>
+   <select data-logf="act">${opt('*','All actions',LOGF.act)}${acts.map(a=>opt(a,a,LOGF.act)).join('')}</select>
+   <select data-logf="days">${opt('*','Any time',LOGF.days)}${[['1','Last 24 hours'],['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days']].map(([v,l])=>opt(v,l,LOGF.days)).join('')}</select>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr><th style="width:150px">When</th><th>User</th><th>Action</th><th>Order / item</th><th>Details</th><th></th></tr></thead><tbody>`;
+  h+=rows.slice(0,LOGLIMIT).map(e=>`<tr><td class="small" style="white-space:nowrap">${new Date(e.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</td><td><b>${esc(e.user)}</b></td><td><span class="b ${actC(e.act)}">${esc(e.act)}</span></td><td>${esc(e.ref||'')}</td><td class="small">${esc(e.detail||'')}</td><td>${e.snap&&e.act==='Order deleted'&&!byId(e.snap.id)?`<button class="btn sm" data-act="log-restore" data-id="${esc(e.id)}">Restore order</button>`:''}${e.snap&&e.act==='Customer deleted'&&!(DB.customers||[]).some(c=>c.id===e.snap.id)?`<button class="btn sm" data-act="log-restore-cust" data-id="${esc(e.id)}">Restore</button>`:''}</td></tr>`).join('')||`<tr><td colspan="6" class="nodata">No log entries match.</td></tr>`;
+  h+=`</tbody></table></div>${rows.length>LOGLIMIT?`<div class="cb"><button class="btn sm" data-act="log-more">Show more (${rows.length-LOGLIMIT} older)</button></div>`:''}</div>
+  <div class="card" style="margin-top:14px"><div class="ch"><h3>🧹 Clear old log entries</h3></div><div class="cb"><div class="listrow">
+   <span>Remove entries older than</span>
+   <select id="clearDays" style="padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface)"><option value="10">10 days</option><option value="30">1 month</option><option value="60" selected>2 months</option><option value="180">6 months</option><option value="365">1 year</option></select>
+   <button class="btn danger" data-act="log-clear">Clear older entries</button></div>
+   <p class="small muted" style="margin-bottom:0">Removed entries are not destroyed — they are moved to a file in Google Drive › PEPAL Order Desk Cloud › log-archive, so a yearly split happens just by clearing entries older than 1 year.</p></div></div>`;
+  return h;
+}
+
+/* ============ Users (admin) ============ */
+let USERS=null;
+async function loadUsers(){const r=await apiOrToast('users');USERS=r.ok?r.users:[];const b=$('#usersBox');if(b)b.innerHTML=usersTable()}
+function usersTable(){
+  if(USERS===null){loadUsers();return'<div class="nodata">Loading logins…</div>'}
+  return`<div class="tw"><table><thead><tr><th>User</th><th>Role</th><th>Last sign-in</th><th>Signed-in devices</th><th></th></tr></thead><tbody>${USERS.map(u=>`<tr>
+   <td style="min-width:150px"><b>${esc(u.name)}</b>${u.fixed?'<div class="small muted">set in Apps Script</div>':''}${u.createdBy?`<div class="small muted">added by ${esc(u.createdBy)} ${u.created?fmtDate(u.created.slice(0,10)):''}</div>`:''}</td>
+   <td><span class="b ${u.role==='admin'?'violet':'info'}">${u.role==='admin'?'Admin':'Staff'}</span></td>
+   <td class="small">${u.lastLogin?new Date(u.lastLogin).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'—'}</td>
+   <td class="small">${(u.devices||[]).length?u.devices.map(d=>esc(d.dev||'device')).join('<br>'):'<span class="faint">none</span>'}</td>
+   <td class="num" style="white-space:nowrap">${u.fixed?'':`<button class="btn sm" data-act="user-reset" data-n="${esc(u.name)}">Reset password</button> <button class="btn sm" data-act="user-role" data-n="${esc(u.name)}" data-r="${u.role==='admin'?'staff':'admin'}">Make ${u.role==='admin'?'staff':'admin'}</button> ${(u.devices||[]).length?`<button class="btn sm" data-act="user-signout" data-n="${esc(u.name)}">Sign out devices</button> `:''}<button class="btn sm danger" data-act="user-del" data-n="${esc(u.name)}">Remove</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function genPassword(){const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';let s='';const a=new Uint32Array(10);crypto.getRandomValues(a);a.forEach(x=>s+=c[x%c.length]);return s.slice(0,4)+'-'+s.slice(4,8)+s.slice(8)}
+function userForm(name){
+  const ex=name&&USERS&&USERS.find(u=>u.name===name);
+  openModal(`<div class="mh"><h3>${ex?'Reset password · '+esc(name):'Add login'}</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><div class="form">
+   ${ex?'':`<div class="field"><label>User name</label><input id="u_name" autofocus placeholder="e.g. Sales Desk"></div><div class="field"><label>Role</label><select id="u_role"><option value="staff">Staff — orders, payments, delivery, customers</option><option value="admin">Admin — everything</option></select></div>`}
+   <div class="field wide"><label>Password</label><div class="listrow"><input id="u_pw" value="${genPassword()}" style="flex:1;font-family:ui-monospace,Consolas,monospace"><button class="btn sm" type="button" data-act="user-gen">↻ New</button></div></div>
+  </div><div class="hint" id="u_err" style="margin-top:8px;color:var(--bad)"></div>
+  <p class="small muted">Share the user name and password with the person. Passwords are stored scrambled in the cloud — nobody (not even ADMIN) can read them later, only reset them.${ex?' Resetting signs this user out of all devices.':''}</p></div>
+  <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="u_ok">${ex?'Reset password':'Create login'}</button></div>`,'narrow');
+  $('#u_ok').onclick=async()=>{
+    const n=ex?name:$('#u_name').value.trim(),pw=$('#u_pw').value.trim(),role=ex?ex.role:$('#u_role').value;
+    if(!n){$('#u_err').textContent='Enter a user name.';return}
+    $('#u_ok').disabled=true;
+    const r=await apiOrToast('setUser',{name:n,password:pw,role});
+    $('#u_ok').disabled=false;
+    if(!r.ok){$('#u_err').textContent=r.error||'Failed';return}
+    USERS=r.users;const b=$('#usersBox');if(b)b.innerHTML=usersTable();
+    openModal(`<div class="mh"><h3>✓ Login ready</h3></div><div class="mb"><p>Give these details to the user:</p>
+      <div class="notebox" style="font-family:ui-monospace,Consolas,monospace;font-size:15px">User: ${esc(n)}\nPassword: ${esc(pw)}</div>
+      <p class="small muted">This password is not shown again.</p></div>
+      <div class="mf"><button class="btn" data-act="copy-login" data-t="${esc('PEPAL Order Desk\nUser: '+n+'\nPassword: '+pw+(apiUrl()&&!DEFAULT_API_URL?'\nCloud link: '+apiUrl():''))}">Copy</button><button class="btn primary" data-act="modal-close">Done</button></div>`,'narrow');
+  };
+}
+
+/* ============ Settings ============ */
+function summarize(d){
+  const save=DB;DB=normalizeDB(d);try{
+    const rows=DB.orders.map(o=>({o,c:calc(o)})),live=rows.filter(r=>!r.c.cancelled);
+    const ds=DB.orders.map(o=>o.date).filter(Boolean).sort();
+    return{orders:DB.orders.length,customers:new Set(DB.orders.map(custKey).concat((DB.customers||[]).map(c=>phoneKey(c.phone)||'n:'+String(c.name).toLowerCase().trim()))).size,billed:live.reduce((s,r)=>s+(r.c.amount||0),0),
+      received:live.reduce((s,r)=>s+r.c.received,0),due:rows.reduce((s,r)=>s+(r.c.balance>0?r.c.balance:0),0),open:rows.filter(r=>r.c.open).length,
+      payments:DB.orders.reduce((s,o)=>s+(o.payments||[]).length,0),first:ds[0]||'',last:ds[ds.length-1]||'',maxNo:DB.orders.reduce((m,o)=>Math.max(m,+o.no||0),0),
+      products:DB.products.map(p=>p.name+' @ '+money(p.rate)).join(', '),updated:DB.meta&&DB.meta.updated}
+  }finally{DB=save}
+}
+function settingsView(){
+  const st=syncState(),adm=isAdmin(),old=adm&&oldLocalData();
+  let h=`<div class="pagehead"><div class="grow"><h2>Settings &amp; Data</h2><div class="muted small">${adm?'Products, lists, users, Excel import/export, backup &amp; restore':'Signed in as staff — products and lists can only be changed by ADMIN'}</div></div></div><div class="grid g2">`;
+  h+=`<div class="card"><div class="ch"><h3>☁️ Cloud &amp; account</h3></div><div class="cb">
+   <div class="kv" style="margin-bottom:12px">
+    <div><div class="k">Signed in as</div><div class="v">${esc(CFG.user)} · ${adm?'Admin':'Staff'}</div></div>
+    <div><div class="k">Sync</div><div class="v">${esc(st.t)}</div></div>
+    <div><div class="k">Cloud last changed</div><div class="v">${CACHE&&CACHE.data&&CACHE.data.meta&&CACHE.data.meta.updated?relDays(CACHE.data.meta.updated)+' '+hhmm(CACHE.data.meta.updated):'—'}</div></div>
+    <div><div class="k">Waiting / issues</div><div class="v">${QUEUE.length} / ${ISSUES.length}</div></div>
+   </div>
+   <div class="actions"><button class="btn" data-act="sync-now">⟳ Sync now</button>${ISSUES.length?'<button class="btn danger" data-act="issues">Fix sync issues</button>':''}<button class="btn" data-act="logout">Log out</button></div>
+   ${DEFAULT_API_URL?'':`<p class="small muted" style="margin-bottom:0">Cloud link: <span style="word-break:break-all">${esc(apiUrl())}</span></p>`}
+  </div></div>`;
+  if(adm){
+    h+=`<div class="card"><div class="ch"><h3>💾 Backup &amp; restore</h3></div><div class="cb">
+     <p class="muted small" style="margin-top:0">The cloud keeps a dated copy at least every 30 minutes (last 60 copies) in Google Drive. You can also keep your own backup file — it includes the user logins.</p>
+     ${old?`<div class="notice">This browser still holds <b>${old.orders.length} orders</b> from the earlier offline version. <button class="btn sm" data-act="upload-old">Review &amp; upload to cloud</button></div>`:''}
+     <div class="actions"><button class="btn primary" data-act="backup">⬇ Download full backup</button><button class="btn" data-act="restore">♻️ Restore from backup file…</button><button class="btn" data-act="versions">🕘 Cloud versions…</button></div></div></div>`;
+    h+=`<div class="card"><div class="ch"><h3>📊 Excel import / export</h3></div><div class="cb">
+     <p class="muted small" style="margin-top:0">Import reads the <b>Orders</b>, <b>Rates</b> and <b>Lists</b> sheets of the PEPAL Order Tracker workbook. You'll see a summary before the cloud is changed.</p>
+     <div class="actions"><button class="btn primary" data-act="import-xlsx">📥 Import Excel tracker…</button><button class="btn" data-act="export-xlsx" data-scope="all">⬇ Export all to Excel</button></div></div></div>`;
+    h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>🔑 Users &amp; logins</h3><span class="grow"></span><button class="btn sm" data-act="user-reload">⟳</button><button class="btn sm primary" data-act="user-add">+ Add login</button></div><div id="usersBox">${usersTable()}</div></div>`;
+  }else{
+    h+=`<div class="card"><div class="ch"><h3>📊 Export</h3></div><div class="cb"><div class="actions"><button class="btn" data-act="export-xlsx" data-scope="all">⬇ Export all orders to Excel</button></div></div></div>`;
+  }
+  // products
+  h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>📦 Products &amp; rates</h3><span class="muted small grow">rate is copied into each order when it's created — changing a rate never silently re-prices old orders</span>${adm?'<button class="btn sm" data-act="add-product">+ Add product</button>':'<span class="b">ADMIN only</span>'}</div><div class="tw"><table><thead><tr><th>Product</th><th class="num" style="width:150px">Rate (₹ / unit)</th><th>Note</th><th>Active</th><th class="num">Used in</th><th></th></tr></thead><tbody>`;
+  h+=DB.products.length?DB.products.map(p=>{const used=DB.orders.filter(o=>o.items.some(i=>i.pid===p.id&&+i.qty>0)).length;
+    if(!adm)return`<tr><td><b>${esc(p.name)}</b></td><td class="num">${money(p.rate)}</td><td class="small muted">${esc(p.note||'')}</td><td>${p.active!==false?'Yes':'No'}</td><td class="num">${used} orders</td><td></td></tr>`;
+    const stale=DB.orders.filter(o=>{const c=calc(o);return c.open&&!c.hasOv&&o.items.some(i=>i.pid===p.id&&+i.qty>0&&+i.rate!==+p.rate)}).length;
+    return`<tr><td><input data-pf="name" data-id="${p.id}" value="${esc(p.name)}"></td><td><input type="number" step="0.01" data-pf="rate" data-id="${p.id}" value="${p.rate}" style="text-align:right"></td><td><input data-pf="note" data-id="${p.id}" value="${esc(p.note||'')}"></td>
+    <td><input type="checkbox" data-pf="active" data-id="${p.id}" ${p.active!==false?'checked':''} style="width:auto"></td><td class="num">${used} orders</td>
+    <td class="num">${stale?`<button class="btn sm" data-act="apply-rate" data-id="${p.id}" title="Open orders without an amount override that still use an older rate">Apply new rate to ${stale} open order(s)</button>`:''}${used?'':` <button class="btn sm danger" data-act="del-product" data-id="${p.id}">Delete</button>`}</td></tr>`}).join('')
+   :`<tr><td colspan="6" class="nodata">No products yet${adm?' — import the Excel tracker or add one.':' — ask ADMIN to add them.'}</td></tr>`;
+  h+=`</tbody></table></div></div>`;
+  // lists
+  if(adm){
+    h+=`<div class="card"><div class="ch"><h3>Payment modes</h3></div><div class="cb"><div class="listrow">${DB.lists.payModes.map((m,i)=>`<span class="tag">${esc(m)}<button data-act="del-mode" data-i="${i}" title="Remove">×</button></span>`).join('')}</div>
+     <div class="listrow" style="margin-top:10px"><input id="newMode" placeholder="New payment mode" style="padding:7px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--surface)"><button class="btn sm" data-act="add-mode">Add</button></div></div></div>`;
+    h+=`<div class="card"><div class="ch"><h3>Offers / reasons</h3><span class="muted small grow">picking one in an order fills its discount automatically</span></div><div class="cb"><table><thead><tr><th>Name</th><th style="width:150px">Discount type</th><th style="width:110px" class="num">Value</th><th style="width:40px"></th></tr></thead><tbody>${DB.lists.offers.map((o,i)=>`<tr><td><input data-off="name" data-i="${i}" value="${esc(o.name)}"></td><td><select data-off="kind" data-i="${i}"><option value="" ${!o.kind?'selected':''}>No discount</option><option value="pct" ${o.kind==='pct'?'selected':''}>% off</option><option value="flat" ${o.kind==='flat'?'selected':''}>₹ flat off</option></select></td><td><input type="number" step="0.01" data-off="val" data-i="${i}" value="${o.val??''}" placeholder="${o.kind==='flat'?'₹':o.kind==='pct'?'%':'—'}" ${o.kind?'':'disabled'} style="text-align:right"></td><td><button class="btn sm ghost" data-act="del-offer" data-i="${i}">×</button></td></tr>`).join('')}</tbody></table>
+     <button class="btn sm" data-act="add-offer" style="margin-top:8px">+ Add offer</button><div class="small muted" style="margin-top:6px">“${esc(defaultOffer())}” is pre-selected on every new order.</div></div></div>`;
+  }else{
+    h+=`<div class="card"><div class="ch"><h3>Payment modes &amp; offers</h3><span class="b">ADMIN only</span></div><div class="cb"><div class="listrow">${DB.lists.payModes.map(m=>`<span class="tag" style="padding-right:10px">${esc(m)}</span>`).join('')}</div><div class="listrow" style="margin-top:10px">${DB.lists.offers.map(o=>`<span class="tag" style="padding-right:10px">${esc(o.name)} · <span class="muted">${esc(offerLabel(o))}</span></span>`).join('')}</div></div></div>`;
+  }
+  h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>How this works</h3></div><div class="cb small muted" style="columns:2 280px;column-gap:28px">
+   <p><b>One shared copy</b> lives in ADMIN's Google Drive. Every change you make shows instantly here and uploads in the background; without internet it waits on this device and uploads when you're back online.</p>
+   <p><b>Clashes:</b> if two devices use the same order number, or edit the same order at the same time, a red “sync issue” appears with one-click fixes (e.g. “Use next free number”).</p>
+   <p><b>Staff</b> can create, edit and delete orders, record payments, change delivery and add customers. <b>ADMIN</b> also manages products, rates, offers, payment modes, users, customers list edits, imports, restores and the activity log.</p>
+   <p><b>Order Amount</b> = Amount Override if given, otherwise Σ(qty × rate) less Discount % less Flat discount. <b>Balance</b> = Amount − payments.</p>
+   <p>Shortcuts: <kbd>/</kbd> search · <kbd>N</kbd> new order · <kbd>Esc</kbd> close.</p>
+   ${adm?`<p><button class="btn sm danger" data-act="clear-all">Delete all data in the cloud…</button></p>`:''}</div></div>`;
+  return h+`</div>`;
+}
+const offerLabel=x=>x.kind==='pct'?x.val+'% off':x.kind==='flat'?money(x.val)+' off':'no discount';
+function setMasters(fn,msg){
+  const m={products:clone(DB.products),lists:clone(DB.lists)};
+  if(fn(m)===false)return;
+  queueOp({type:'master.set',products:m.products,lists:m.lists},msg);
+}
+
+/* ============ Drawer ============ */
+function pushDrawer(v){drawerStack.push(v);renderDrawer();$('#drawer').classList.add('on');$('#scrim').classList.add('on')}
+function closeDrawer(){drawerStack=[];$('#drawer').classList.remove('on');$('#scrim').classList.remove('on')}
+function renderDrawer(){
+  const v=drawerStack[drawerStack.length-1];if(!v)return closeDrawer();
+  const r=v.render();if(r===null){drawerStack.pop();return renderDrawer()}
+  $('#drawerTitle').textContent=r.title;$('#drawerBody').innerHTML=r.html;$('#drawerBack').style.visibility=drawerStack.length>1?'visible':'hidden';
+}
+function pendBadge(o,small){return pendingIds().has(o.id)?`<span class="b warn" title="Saved on this device, waiting to upload"${small?' style="margin-left:4px;padding:0 5px"':''}>⏳${small?'':' not synced'}</span>`:''}
+function orderRow(o,c){
+  return`<div class="orow" data-act="open-order" data-id="${o.id}"><div class="no">#${o.no}</div><div><b>${esc(o.customer)}</b><div class="small muted">${fmtDate(o.date)} · ${esc(itemsText(o))}</div></div>
+  <div class="r"><div class="num"><b>${money(c.amount)}</b></div>${c.balance>0?`<div class="small" style="color:var(--bad);font-weight:700">${money(c.balance)} due</div>`:''}</div>
+  <div class="badges">${pendBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${c.open?nextBadge(c.next):''}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div></div>`;
+}
+function listDrawer(k,v){
+  return{render(){const d=drill(k,v);const rows=DB.orders.map(o=>({o,c:calc(o)})).filter(r=>d.f(r.o)).sort((a,b)=>(b.c.balance||0)-(a.c.balance||0)||b.o.no-a.o.no);
+    const S=f=>rows.reduce((s,r)=>s+(f(r)||0),0);
+    return{title:d.t,html:`<div class="kv sect"><div><div class="k">Orders</div><div class="v">${rows.length}</div></div><div><div class="k">Units</div><div class="v">${num(S(r=>r.c.units))}</div></div><div><div class="k">Amount</div><div class="v">${money(S(r=>r.c.amount))}</div></div><div><div class="k">Received</div><div class="v">${money(S(r=>r.c.received))}</div></div><div><div class="k">Balance due</div><div class="v" style="color:var(--bad)">${money(S(r=>r.c.balance>0?r.c.balance:0))}</div></div></div>
+    <div class="actions sect"><button class="btn sm" data-act="drill-table" data-k="${esc(k)}" data-v="${esc(v??'')}">Open in Orders table</button></div>
+    ${rows.length?rows.map(r=>orderRow(r.o,r.c)).join(''):'<div class="nodata">No orders.</div>'}`}}};
+}
+function orderDrawer(id){
+  return{render(){const o=byId(id);if(!o)return null;const c=calc(o);
+    const items=o.items.filter(i=>+i.qty>0);
+    const x=buildCtx();const issues=CHECKS.filter(ck=>ck.id!=='check'&&ck.t(o,c,x));
+    const others=DB.orders.filter(z=>z.id!==o.id&&custKey(z)===custKey(o));
+    let h=`<div class="sect" style="display:flex;gap:6px;flex-wrap:wrap">${pendBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${nextBadge(c.next)}${ageBadge(c.daysOpen)}</div>
+    <div class="small muted sect">${o.createdBy?'Created by <b>'+esc(o.createdBy)+'</b>'+(o.createdAt?' · '+new Date(o.createdAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):''):''}${o.updatedBy&&o.updatedAt?' · last change by <b>'+esc(o.updatedBy)+'</b> '+new Date(o.updatedAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):''}</div>
+    <div class="actions sect">${quickActions(o,c,true)}<button class="btn" data-act="edit-order" data-id="${o.id}">✏️ Edit</button></div>
+    <div class="kv sect">
+     <div><div class="k">Order date</div><div class="v">${fmtDate(o.date)}</div></div>
+     <div><div class="k">Customer</div><div class="v"><span class="link" data-act="open-cust" data-k="${esc(custKey(o))}">${esc(o.customer)}</span></div></div>
+     <div><div class="k">Phone</div><div class="v">${o.phone?esc(o.phone):'—'}</div></div>
+     <div><div class="k">Delivery date</div><div class="v">${fmtDate(o.deliveryDate)}</div></div>
+    </div>
+    <div class="card sect"><div class="ch"><h3>Items</h3></div><div class="tw"><table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Value</th>${c.status==='Part Delivered'?'<th class="num">Delivered</th>':''}</tr></thead><tbody>
+     ${items.map(i=>`<tr><td>${esc(prodName(i))}</td><td class="num">${i.qty}</td><td class="num">${money(+i.rate)}</td><td class="num">${money(i.qty*i.rate)}</td>${c.status==='Part Delivered'?`<td class="num">${i.dlv||0} / ${i.qty}</td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="nodata">No items</td></tr>'}
+     </tbody><tfoot>
+      <tr><td colspan="3">List value</td><td class="num">${money(c.listValue)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>
+      ${+o.disc?`<tr><td colspan="3">Discount ${o.disc}%</td><td class="num">− ${money(c.listValue*o.disc/100)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
+      ${+o.flat?`<tr><td colspan="3">Flat discount</td><td class="num">− ${money(+o.flat)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
+      ${c.hasOv?`<tr><td colspan="3">Amount override (special price)</td><td class="num">${money(+o.override)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
+      <tr><td colspan="3">Order amount ${o.offer?`<span class="b">${esc(o.offer)}</span>`:''}</td><td class="num" style="font-size:15px">${money(c.amount)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>
+     </tfoot></table></div></div>
+    <div class="card sect"><div class="ch"><h3>Payments</h3><span class="grow"></span>${!c.cancelled?`<button class="btn sm" data-act="pay-order" data-id="${o.id}">+ Add payment</button>`:''}</div><div class="tw"><table><thead><tr><th>Date</th><th>Mode</th><th>Ref / note</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+     ${(o.payments||[]).map(p=>`<tr><td>${fmtDate(p.date)}</td><td>${esc(p.mode||'—')}</td><td class="small muted">${esc(p.ref||'')}</td><td class="num">${money(+p.amount)}</td><td class="num"><button class="btn sm ghost" data-act="del-pay" data-id="${o.id}" data-p="${p.id}" title="Remove payment">×</button></td></tr>`).join('')||`<tr><td colspan="5" class="nodata">No payments recorded${o.payMode?' · usual mode: '+esc(o.payMode):''}</td></tr>`}
+     </tbody><tfoot><tr><td colspan="3">Received</td><td class="num">${money(c.received)}</td><td></td></tr><tr><td colspan="3">Balance due</td><td class="num" style="${c.balance>0?'color:var(--bad)':''}">${money(c.balance)}</td><td></td></tr></tfoot></table></div></div>
+    ${o.notes?`<div class="sect"><div class="fsec" style="margin-top:0">Notes</div><div class="notebox ${hasCheck(o)?'check':''}">${esc(o.notes)}</div>${hasCheck(o)?`<div class="actions" style="margin-top:8px"><button class="btn sm" data-act="resolve-check" data-id="${o.id}">✓ Mark CHECK as resolved</button><span class="small muted">removes the CHECK part, keeps the rest</span></div>`:''}</div>`:''}
+    ${issues.length?`<div class="sect"><div class="fsec">Data checks</div>${issues.map(i=>`<span class="b ${i.lvl}" style="margin:0 6px 6px 0">${esc(i.label)}</span>`).join('')}</div>`:''}
+    ${others.length?`<div class="sect"><div class="fsec">Other orders by this customer (${others.length})</div>${others.sort((a,b)=>b.no-a.no).map(z=>orderRow(z,calc(z))).join('')}</div>`:''}
+    <div class="sect"><div class="fsec">History</div><div class="log">${(o.log||[]).slice().reverse().map(l=>`<div>${new Date(l.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})} — ${l.user?'<b>'+esc(l.user)+'</b>: ':''}${esc(l.msg)}</div>`).join('')||'<div>—</div>'}</div></div>
+    <div class="actions sect"><button class="btn sm" data-act="dup-order" data-id="${o.id}">Duplicate as new order</button>${!c.cancelled?`<button class="btn sm" data-act="set-status" data-id="${o.id}" data-s="Cancelled">Cancel order</button>`:''}<button class="btn sm danger" data-act="del-order" data-id="${o.id}">Delete order</button></div>`;
+    return{title:'Order #'+o.no+' · '+o.customer,html:h}}};
+}
+function custDrawer(k){
+  return{render(){const g=customerGroups().find(x=>x.k===k);if(!g)return null;
+    const ph=waNum(g.phone);
+    const bal=g.orders.map(o=>({o,c:calc(o)})).filter(r=>r.c.balance>0);
+    const waMsg=`Hello ${g.name.replace(/\s*\(.*?\)\s*/g,' ').trim()}, greetings from PEPAL!\nA gentle reminder of the balance on your order(s):\n`+bal.map(r=>`#${r.o.no} (${fmtDate(r.o.date)}): ${money(r.c.balance)}`).join('\n')+`\nTotal due: ${money(g.bal)}\nThank you!`;
+    const c=g.cust;
+    return{title:g.name,html:`<div class="kv sect"><div><div class="k">Phone</div><div class="v">${esc(g.phone||'—')}</div></div>${c&&c.place?`<div><div class="k">Place</div><div class="v">${esc(c.place)}</div></div>`:''}<div><div class="k">Orders</div><div class="v">${g.orders.length}</div></div><div><div class="k">Units</div><div class="v">${g.units}</div></div><div><div class="k">Billed</div><div class="v">${money(g.billed)}</div></div><div><div class="k">Received</div><div class="v">${money(g.rec)}</div></div><div><div class="k">Balance due</div><div class="v" style="color:${g.bal>0?'var(--bad)':'inherit'}">${money(g.bal)}</div></div></div>
+    ${c&&c.notes?`<div class="notebox sect">${esc(c.notes)}</div>`:''}
+    ${g.alias.length?`<div class="notice">Same phone recorded under different names: <b>${esc([g.name,...g.alias].join(' · '))}</b> — check if these are the same person.</div>`:''}
+    <div class="actions sect">${ph.length>=10?`<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(g.bal>0?waMsg:'Hello '+g.name+', greetings from PEPAL!')}">💬 WhatsApp${g.bal>0?' balance reminder':''}</a><a class="btn" href="tel:+${ph}">📞 Call</a>`:''}<button class="btn primary" data-act="new-order-for" data-k="${esc(k)}">+ New order for this customer</button></div>
+    <div class="actions sect">${c?(isAdmin()?`<button class="btn sm" data-act="edit-customer" data-id="${c.id}">✏️ Edit customer</button><button class="btn sm danger" data-act="del-customer" data-id="${c.id}">Delete from customer list</button>`:'<span class="small muted">In the customer list · only ADMIN can edit customer details</span>'):`<button class="btn sm" data-act="save-cust" data-k="${esc(k)}">+ Save to customer list</button>`}</div>
+    ${g.orders.length?g.orders.slice().sort((a,b)=>b.no-a.no).map(o=>orderRow(o,calc(o))).join(''):'<div class="nodata">No orders yet.</div>'}`}}};
+}
+
+/* ============ Modal helpers ============ */
+let modalOnClose=null;
+function openModal(html,cls=''){const m=$('#modal');m.innerHTML=`<div class="mbox ${cls}" role="dialog">${html}</div>`;m.classList.add('on');setTimeout(()=>{const f=m.querySelector('[autofocus]');if(f)f.focus()},30)}
+function closeModal(){$('#modal').classList.remove('on');$('#modal').innerHTML='';if(modalOnClose){const f=modalOnClose;modalOnClose=null;f(false)}}
+function confirmBox(title,body,ok='OK',danger=false,typeWord=null){
+  return new Promise(res=>{
+    openModal(`<div class="mh"><h3>${esc(title)}</h3></div><div class="mb">${body}${typeWord?`<div class="field" style="margin-top:10px"><label>Type <b>${typeWord}</b> to confirm</label><input id="cfType" autofocus></div>`:''}</div>
+    <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn ${danger?'danger':'primary'}" id="cfOk">${esc(ok)}</button></div>`,'narrow');
+    modalOnClose=res;
+    $('#cfOk').onclick=()=>{if(typeWord&&$('#cfType').value.trim().toUpperCase()!==typeWord){$('#cfType').focus();return}modalOnClose=null;closeModal();res(true)};
+  });
+}
+let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('on'),2600)}
+
+/* ============ Order form ============ */
+function orderForm(id,preset){
+  const o=id?JSON.parse(JSON.stringify(byId(id))):Object.assign({id:null,no:nextNo(),date:today(),customer:'',phone:'',items:[],disc:'',flat:'',offer:defaultOffer(),override:'',payments:[],status:'Yet to Deliver',deliveryDate:'',notes:'',payMode:''},preset||{});
+  const pids=new Set(DB.products.filter(p=>p.active!==false).map(p=>p.id));o.items.forEach(i=>pids.add(i.pid));
+  const rowsP=[...pids].map(pid=>{const p=DB.products.find(p=>p.id===pid);const it=o.items.find(i=>i.pid===pid)||{};return{pid,name:p?p.name:it.name,rate:it.rate!=null&&it.rate!==''?it.rate:(p?p.rate:0),qty:it.qty||'',dlv:it.dlv||''}});
+  if(!id&&!o.payments.length)o.payments=[{id:uid('p'),date:today(),mode:o.payMode||DB.lists.payModes[0]||'',amount:'',ref:''}];
+  const custNames=[...new Set(DB.customers.map(c=>c.name).concat(DB.orders.map(z=>z.customer)).filter(Boolean))].sort();
+  const sel=(arr,cur,blank)=>(blank!=null?`<option value="">${blank}</option>`:'')+arr.map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join('')+(cur&&!arr.includes(cur)?`<option selected>${esc(cur)}</option>`:'');
+  const payRow=p=>`<tr data-prow="${p.id}"><td><input type="date" data-pp="date" value="${p.date||''}"></td><td><select data-pp="mode">${sel(DB.lists.payModes,p.mode,'—')}</select></td><td><input type="number" step="0.01" data-pp="amount" value="${p.amount}" placeholder="0" style="text-align:right"></td><td><input data-pp="ref" value="${esc(p.ref||'')}" placeholder="UTR / note"></td><td><button class="btn sm ghost" data-act="form-del-pay" type="button">×</button></td></tr>`;
+  openModal(`<div class="mh"><h3>${id?'Edit order #'+o.no:'New order'}</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb" id="ofrm">
+   <div class="form">
+    <div class="field"><label>Order No</label><input type="number" id="f_no" value="${o.no}"></div>
+    <div class="field"><label>Order date</label><input type="date" id="f_date" value="${o.date||''}"></div>
+    <div class="field" style="grid-column:span 2"><label>Customer *</label><input id="f_cust" list="custList" value="${esc(o.customer)}" ${id?'':'autofocus'} autocomplete="off"><datalist id="custList">${custNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+    <div class="field"><label>Phone</label><input id="f_phone" value="${esc(o.phone||'')}" inputmode="tel"></div>
+    <div class="field wide"><div class="hint" id="f_hint"></div></div>
+   </div>
+   <div class="fsec">Items</div>
+   <div class="tw ${o.status==='Part Delivered'?'showdlv':''}" id="itemsWrap"><table class="itbl"><thead><tr><th>Product</th><th class="num" style="width:110px">Rate ₹</th><th class="num" style="width:90px">Qty</th><th class="num dlvcol" style="width:100px">Delivered</th><th class="num" style="width:120px">Value</th></tr></thead><tbody>
+    ${rowsP.map(r=>`<tr data-irow="${r.pid}" data-name="${esc(r.name)}"><td><b>${esc(r.name)}</b></td><td><input type="number" step="0.01" data-ii="rate" value="${r.rate}"></td><td><input type="number" min="0" step="1" data-ii="qty" value="${r.qty}" placeholder="0"></td><td class="dlvcol"><input type="number" min="0" data-ii="dlv" value="${r.dlv}" placeholder="0"></td><td class="num" data-line>—</td></tr>`).join('')||'<tr><td colspan="5" class="nodata">Add products in Settings first.</td></tr>'}
+   </tbody></table></div>
+   <div class="form" style="margin-top:10px">
+    <div class="field"><label>Offer / reason</label><select id="f_offer">${sel(DB.lists.offers.map(x=>x.name),o.offer)}</select></div>
+    <div class="field"><label>Discount %</label><input type="number" step="0.01" id="f_disc" value="${o.disc??''}" placeholder="0"></div>
+    <div class="field"><label>Flat discount ₹</label><input type="number" step="0.01" id="f_flat" value="${o.flat??''}" placeholder="0"></div>
+    <div class="field"><label>Amount override ₹ <span class="faint">(special price)</span></label><input type="number" step="0.01" id="f_ov" value="${o.override??''}" placeholder="blank = calculate"></div>
+   </div>
+   <div class="totals"><div><div class="k">Units</div><div class="v" id="t_units">0</div></div><div><div class="k">List value</div><div class="v" id="t_list">—</div></div><div><div class="k">Order amount</div><div class="v" id="t_amt" style="font-size:17px">—</div></div><div><div class="k">Received</div><div class="v" id="t_rec">—</div></div><div><div class="k">Balance</div><div class="v" id="t_bal">—</div></div></div>
+   <div class="field" style="margin-top:12px"><label>Notes</label><textarea id="f_notes" rows="2">${esc(o.notes||'')}</textarea></div>
+   <details class="xsec" id="d_pay"><summary><span>💳 Payments received</span><span class="xs" id="s_pay"></span></summary><div class="xb">
+    <div class="tw"><table class="itbl"><thead><tr><th style="width:150px">Date</th><th>Mode</th><th class="num" style="width:130px">Amount ₹</th><th>Ref</th><th style="width:40px"></th></tr></thead><tbody id="payRows">${o.payments.map(payRow).join('')}</tbody></table></div>
+    <button class="btn sm" type="button" data-act="form-add-pay" style="margin-top:6px">+ Add payment</button>
+    <div class="field" style="margin-top:10px;max-width:260px"><label>Usual payment mode</label><select id="f_pm">${sel(DB.lists.payModes,o.payMode,'—')}</select></div>
+   </div></details>
+   <details class="xsec" id="d_del"><summary><span>🚚 Delivery</span><span class="xs" id="s_del"></span></summary><div class="xb">
+    <div class="form">
+     <div class="field"><label>Delivery status</label><select id="f_status">${sel(DELIVERY,o.status,'(not set)')}</select></div>
+     <div class="field"><label>Delivery date</label><input type="date" id="f_ddate" value="${o.deliveryDate||''}"></div>
+    </div><div class="small muted" style="margin-top:6px">Choose “Part Delivered” to enter delivered qty per item in the Items table.</div>
+   </div></details>
+  </div>
+  <div class="mf"><span class="hint" id="f_err" style="margin-right:auto;color:var(--bad)"></span><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="f_save">${id?'Save changes':'Create order'}</button></div>`);
+  const F=$('#ofrm');
+  F.__payRow=payRow;F.__oid=o.id;
+  const recalc=()=>{
+    let units=0,list=0;F.querySelectorAll('[data-irow]').forEach(tr=>{const q=+tr.querySelector('[data-ii=qty]').value||0,r=+tr.querySelector('[data-ii=rate]').value||0;units+=q;list+=q*r;tr.querySelector('[data-line]').textContent=q?money(q*r):'—'});
+    const ov=$('#f_ov').value,disc=+$('#f_disc').value||0,flat=+$('#f_flat').value||0;const amt=ov!==''?+ov:(list?Math.max(0,list*(1-disc/100)-flat):null);
+    const rec=[...F.querySelectorAll('[data-pp=amount]')].reduce((s,i)=>s+(+i.value||0),0);
+    $('#t_units').textContent=units;$('#t_list').textContent=money(list||null);$('#t_amt').textContent=amt==null?'Amount TBC':money(amt);$('#t_rec').textContent=money(rec);
+    const bal=amt==null?null:($('#f_status').value==='Cancelled'?0:amt-rec);$('#t_bal').textContent=money(bal);$('#t_bal').style.color=bal>0?'var(--bad)':bal<0?'var(--warn)':'';
+    $('#itemsWrap').classList.toggle('showdlv',$('#f_status').value==='Part Delivered');
+    const pr=[...F.querySelectorAll('[data-prow]')].filter(tr=>+tr.querySelector('[data-pp=amount]').value);
+    $('#s_pay').textContent=pr.length?money(rec)+' · '+[...new Set(pr.map(tr=>tr.querySelector('[data-pp=mode]').value).filter(Boolean))].join(', ')+(bal>0?' · '+money(bal)+' due':bal!=null&&bal<=0?' · fully paid':''):'none yet — click to add';
+    $('#s_del').textContent=($('#f_status').value||'Status not set')+($('#f_ddate').value?' · '+fmtDate($('#f_ddate').value):'');
+    // hints
+    const hints=[];const ph=phoneKey($('#f_phone').value),nm=normName($('#f_cust').value);
+    if(ph){const d=digits($('#f_phone').value);if(!(d.length===10||(d.length===12&&d.startsWith('91'))))hints.push('Phone should have 10 digits.');
+      const same=DB.orders.filter(z=>z.id!==o.id&&phoneKey(z.phone)===ph&&normName(z.customer)!==nm);if(same.length)hints.push(`This phone is also used by “${same[0].customer}” (#${same[0].no}).`)}
+    const no=+$('#f_no').value;if(DB.orders.some(z=>z.id!==o.id&&+z.no===no))hints.push(`Order No ${no} already exists — next free is ${nextNoExcept(o.id)}.`);
+    else if(no&&skipInfo(no,o.id))hints.push(`⚠ Order No ${no} skips ${skipInfo(no,o.id)} — next in line is ${nextNoExcept(o.id)}.`);
+    if(bal!=null&&bal<-0.5)hints.push('Payments are more than the order amount.');
+    $('#f_hint').textContent=hints.join('  ');
+  };
+  F.addEventListener('input',recalc);F.addEventListener('change',recalc);
+  $('#f_cust').addEventListener('change',()=>{const n=$('#f_cust').value.trim();if(!$('#f_phone').value){const mc=DB.customers.find(c=>c.name===n&&c.phone);const z=DB.orders.slice().reverse().find(z=>z.customer===n&&z.phone);if(mc||z){$('#f_phone').value=(mc||z).phone;if(z&&!$('#f_pm').value&&z.payMode)$('#f_pm').value=z.payMode;recalc()}}});
+  $('#f_offer').addEventListener('change',()=>{const of=DB.lists.offers.find(x=>x.name===$('#f_offer').value);if(!of||$('#f_ov').value!=='')return;
+    $('#f_disc').value=of.kind==='pct'?of.val:'';$('#f_flat').value=of.kind==='flat'?of.val:'';recalc()});
+  $('#f_status').addEventListener('change',()=>{const s=$('#f_status').value;if(s==='Delivered'&&!$('#f_ddate').value)$('#f_ddate').value=today()});
+  recalc();
+  $('#f_save').onclick=()=>{
+    const err=m=>{$('#f_err').innerHTML=m};
+    const no=parseInt($('#f_no').value,10);if(!no||no<1)return err('Enter a valid Order No.');
+    if(DB.orders.some(z=>z.id!==o.id&&+z.no===no))return err('Order No '+no+' is already used — next free is <span class="link" data-act="f-use-next">#'+nextNo()+'</span>.');
+    const gap=skipInfo(no,o.id);
+    if(gap&&F.__skipOk!==no){F.__skipOk=no;return err(`⚠ #${no} skips ${gap}. Click <b>${id?'Save changes':'Create order'}</b> again to confirm, or <span class="link" data-act="f-use-next">use #${nextNoExcept(o.id)}</span>.`)}
+    const cust=$('#f_cust').value.trim();if(!cust)return err('Customer name is required.');
+    const items=[...F.querySelectorAll('[data-irow]')].map(tr=>({pid:tr.dataset.irow,name:tr.dataset.name,qty:+tr.querySelector('[data-ii=qty]').value||0,rate:+tr.querySelector('[data-ii=rate]').value||0,dlv:+tr.querySelector('[data-ii=dlv]').value||0})).filter(i=>i.qty>0);
+    const pays=[...F.querySelectorAll('[data-prow]')].map(tr=>({id:tr.dataset.prow,date:tr.querySelector('[data-pp=date]').value,mode:tr.querySelector('[data-pp=mode]').value,amount:+tr.querySelector('[data-pp=amount]').value||0,ref:tr.querySelector('[data-pp=ref]').value.trim()})).filter(p=>p.amount);
+    const status=$('#f_status').value;
+    if(status==='Part Delivered'&&!items.some(i=>i.dlv>0))return err('Part Delivered: enter the delivered qty for at least one item.');
+    const ov=$('#f_ov').value;
+    const rec={id:id||uid('o'),no,date:$('#f_date').value,customer:cust,phone:$('#f_phone').value.trim(),items,disc:$('#f_disc').value===''?'':+$('#f_disc').value,flat:$('#f_flat').value===''?'':+$('#f_flat').value,offer:$('#f_offer').value,override:ov===''?'':+ov,payments:pays,status,deliveryDate:$('#f_ddate').value,notes:$('#f_notes').value.trim(),payMode:$('#f_pm').value};
+    if(!rec.payMode&&pays.length)rec.payMode=pays[pays.length-1].mode;
+    closeModal();
+    ensureCustomer(rec.customer,rec.phone);
+    if(id)queueOp({type:'order.upsert',order:rec,base:+(byId(id)||{}).v||0},'Order #'+no+' saved');
+    else{queueOp({type:'order.upsert',order:rec,create:true},'Order #'+no+' created');pushDrawer(orderDrawer(rec.id))}
+  };
+}
+function nextNoExcept(id){return DB.orders.filter(z=>z.id!==id).reduce((m,z)=>Math.max(m,+z.no||0),0)+1}
+// Returns text like "#56–#59" when this number would leave a hole in the numbering, else ''.
+function skipInfo(no,id){const nx=nextNoExcept(id);if(no<=nx)return'';const a=nx,b=no-1;return a===b?'#'+a:'#'+a+'–#'+b}
+function orderGaps(){const ns=[...new Set(DB.orders.map(o=>+o.no||0).filter(n=>n>0))].sort((a,b)=>a-b);const g=[];for(let i=1;i<ns.length;i++)for(let n=ns[i-1]+1;n<ns[i];n++)g.push(n);return g}
+
+function payForm(id){
+  const o=byId(id),c=calc(o);
+  openModal(`<div class="mh"><h3>Record payment · #${o.no} ${esc(o.customer)}</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><div class="kv" style="margin-bottom:12px"><div><div class="k">Order amount</div><div class="v">${money(c.amount)}</div></div><div><div class="k">Received so far</div><div class="v">${money(c.received)}</div></div><div><div class="k">Balance</div><div class="v" style="color:var(--bad)">${money(c.balance)}</div></div></div>
+  <div class="form"><div class="field"><label>Amount ₹</label><input type="number" step="0.01" id="p_amt" value="${c.balance>0?c.balance:''}" autofocus></div>
+  <div class="field"><label>Date</label><input type="date" id="p_date" value="${today()}"></div>
+  <div class="field"><label>Mode</label><select id="p_mode">${DB.lists.payModes.map(m=>`<option ${m===(o.payMode||(o.payments.slice(-1)[0]||{}).mode)?'selected':''}>${esc(m)}</option>`).join('')}</select></div>
+  <div class="field"><label>Ref / UTR / note</label><input id="p_ref"></div></div></div>
+  <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="p_ok">Save payment</button></div>`,'narrow');
+  $('#p_ok').onclick=()=>{const a=+$('#p_amt').value;if(!a){$('#p_amt').focus();return}
+    const p={id:uid('p'),date:$('#p_date').value,mode:$('#p_mode').value,amount:a,ref:$('#p_ref').value.trim()};
+    closeModal();queueOp({type:'payment.add',orderId:o.id,payment:p},'Payment of '+money(a)+' saved')};
+  $('#p_amt').addEventListener('keydown',e=>{if(e.key==='Enter')$('#p_ok').click()});
+}
+function setStatus(o,s){queueOp({type:'order.status',orderId:o.id,status:s,date:today()},'#'+o.no+' → '+s)}
+
+/* ============ Backup / restore (ADMIN, needs internet) ============ */
+function stamp(){const d=new Date();return today()+'_'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')}
+function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+async function doBackup(){
+  const r=await apiOrToast('fullBackup');if(!r.ok)return;
+  const data=Object.assign({app:'PEPAL Order Desk',schema:2,exportedAt:nowISO(),exportedBy:CFG.user},r.data,{users:r.users||[]});
+  download('PEPAL_Orders_Backup_'+stamp()+'.json',new Blob([JSON.stringify(data,null,1)],{type:'application/json'}));
+  toast('Backup downloaded (includes '+(r.users||[]).length+' user login(s)) — keep it somewhere safe');
+}
+function needSynced(){
+  if(QUEUE.length){toast('Some changes are still waiting to upload — wait for “Synced”, then try again');sync();return false}
+  if(!CACHE){toast('Not connected to the cloud yet');return false}
+  return true;
+}
+function custMatchIn(list,name,phone){const pk=phoneKey(phone),nm=String(name||'').trim().toLowerCase();
+  return list.find(c=>(pk.length===10&&phoneKey(c.phone)===pk)||(String(c.name||'').trim().toLowerCase()===nm&&(!pk||!phoneKey(c.phone))))}
+function addCustomersFromOrders(T){
+  T.customers=T.customers||[];let n=0;
+  T.orders.slice().sort((a,b)=>(a.no||0)-(b.no||0)).forEach(o=>{if(!String(o.customer||'').trim())return;
+    if(!custMatchIn(T.customers,o.customer,o.phone)){T.customers.push({id:uid('c'),name:String(o.customer).trim(),phone:String(o.phone||'').trim(),place:'',notes:'',createdAt:nowISO(),createdBy:CFG.user});n++}});
+  return n;
+}
+async function cloudReplace(T,reason,users){
+  const r=await apiOrToast('restore',{data:T,users,baseRev:CACHE.rev,reason});
+  if(!r.ok){if(r.conflict){toast('Someone saved a change a moment ago — syncing, please try again');sync()}return false}
+  CACHE={data:r.data,rev:r.rev,at:nowISO()};persist();buildView();closeModal();closeDrawer();USERS=null;LOGS=null;refresh();
+  return true;
+}
+function restorePreview(inc,sourceLabel,opts){
+  opts=opts||{};inc=normalizeDB(clone(inc));
+  const has=DB.orders.length>0,hasUsers=Array.isArray(inc.users)&&inc.users.length;
+  openModal(`<div class="mh"><h3>Restore — review before applying</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><p class="muted small" style="margin-top:0">Source: <b>${esc(sourceLabel)}</b>${inc.exportedAt?' · backed up '+new Date(inc.exportedAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})+(inc.exportedBy?' by '+esc(inc.exportedBy):''):''}</p>
+  ${compareSummary(DB,inc,'Cloud now','Backup')}
+  <div class="fsec">How to restore</div>
+  <div class="radio">
+   <label><input type="radio" name="rmode" value="replace" checked><div><b>Replace everything</b><div class="small muted">The cloud becomes exactly this backup (products, lists, customers and orders) for everyone.</div></div></label>
+   ${has?`<label><input type="radio" name="rmode" value="merge"><div><b>Merge</b><div class="small muted">Add orders missing in the cloud; for orders in both, keep whichever was edited more recently. Nothing in the cloud is deleted.</div></div></label>`:''}
+  </div>
+  ${hasUsers?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="r_users" checked> Also restore the ${inc.users.length} user login(s) saved in this backup (users not in the backup are removed)</label>`:''}
+  <p class="small muted">The cloud keeps a copy of the current data in Drive › versions first, so this can be undone.</p></div>
+  <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="r_ok">Apply to cloud</button></div>`);
+  $('#r_ok').onclick=async()=>{
+    if(!needSynced())return;
+    const mode=(document.querySelector('[name=rmode]:checked')||{}).value||'replace';
+    const withUsers=hasUsers&&$('#r_users')&&$('#r_users').checked;
+    let T;
+    if(mode==='replace')T={products:inc.products,lists:inc.lists,customers:inc.customers||[],orders:inc.orders};
+    else{T=normalizeDB(clone(CACHE.data));const m=new Map(T.orders.map(o=>[+o.no,o]));let add=0,upd=0;
+      inc.orders.forEach(o=>{const e=m.get(+o.no);if(!e){T.orders.push(o);add++}else if((o.updatedAt||'')>(e.updatedAt||'')){Object.assign(e,o,{v:(+e.v||0)+1});upd++}});
+      inc.customers.forEach(c=>{if(!T.customers.some(x=>x.id===c.id)&&!custMatchIn(T.customers,c.name,c.phone))T.customers.push(c)});
+      inc.products.forEach(p=>{if(!T.products.some(x=>x.id===p.id))T.products.push(p)});
+      inc.lists.payModes.forEach(x=>{if(!T.lists.payModes.includes(x))T.lists.payModes.push(x)});
+      inc.lists.offers.forEach(x=>{if(!T.lists.offers.some(y=>y.name===x.name))T.lists.offers.push(x)});
+      toast(add+' added, '+upd+' updated')}
+    addCustomersFromOrders(T);
+    $('#r_ok').disabled=true;$('#r_ok').textContent='Applying…';
+    const ok=await cloudReplace(T,(opts.reason||'Restored from '+sourceLabel)+(mode==='merge'?' (merge)':''),withUsers?inc.users:undefined);
+    if(ok){toast('Cloud updated from '+sourceLabel);if(opts.after)opts.after()}
+    else{const b=$('#r_ok');if(b){b.disabled=false;b.textContent='Apply to cloud'}}
+  };
+}
+function readJsonFile(file){
+  const r=new FileReader();r.onload=()=>{let d;try{d=JSON.parse(r.result)}catch(e){return toast('That file is not a valid backup (JSON).')}
+    if(!d||!Array.isArray(d.orders)){return toast('This JSON is not a PEPAL Order Desk backup.')}
+    restorePreview(d,file.name)};r.readAsText(file);
+}
+async function openVersions(){
+  openModal(`<div class="mh"><h3>🕘 Cloud versions</h3><button class="iconbtn" data-act="modal-close">✕</button></div><div class="mb" id="verBox"><div class="nodata">Loading…</div></div><div class="mf"><button class="btn" data-act="modal-close">Close</button></div>`);
+  const r=await apiOrToast('versions');const b=$('#verBox');if(!b)return;
+  if(!r.ok){b.innerHTML=`<div class="nodata">${esc(r.error||'Could not load versions')}</div>`;return}
+  b.innerHTML=`<p class="small muted" style="margin-top:0">Dated copies the cloud keeps automatically (at most every 30 minutes, and always before a restore, import or delete-all). Preview one to compare with the cloud now.</p>
+  <div class="tw"><table><thead><tr><th>Saved</th><th class="num">Size</th><th></th></tr></thead><tbody>${r.versions.map(v=>`<tr><td>${new Date(v.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}<div class="small faint">${esc(v.name)}</div></td><td class="num">${Math.round(v.size/1024)} KB</td><td class="num"><button class="btn sm" data-act="version-get" data-id="${esc(v.id)}">Preview &amp; restore</button></td></tr>`).join('')||'<tr><td colspan="3" class="nodata">No versions yet.</td></tr>'}</tbody></table></div>`;
+}
+async function getVersion(id){
+  const r=await apiOrToast('getVersion',{id});if(!r.ok)return;
+  restorePreview(r.data,'cloud version of '+new Date(r.at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}),{reason:'Restored cloud version '+r.name});
+}
+function wipeBox(){
+  openModal(`<div class="mh"><h3>Delete ALL data in the cloud?</h3></div><div class="mb">
+   <p>All orders and customers will be removed <b>for every user</b>. The cloud keeps a copy in Drive › versions first, so ADMIN can still restore it.</p>
+   <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="w_keep" checked> Keep products, rates, offers &amp; payment modes</label>
+   <div class="field" style="margin-top:10px"><label>Type <b>DELETE</b> to confirm</label><input id="w_type" autofocus></div></div>
+   <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn danger" id="w_ok">Delete everything</button></div>`,'narrow');
+  $('#w_ok').onclick=async()=>{
+    if($('#w_type').value.trim().toUpperCase()!=='DELETE'){$('#w_type').focus();return}
+    if(!needSynced())return;
+    const r=await apiOrToast('wipe',{keepMasters:$('#w_keep').checked});
+    if(r.ok){CACHE={data:r.data,rev:r.rev,at:nowISO()};persist();buildView();closeModal();closeDrawer();refresh();toast('All data deleted')}
+  };
+}
+
+function compareSummary(cur,inc,curLbl,incLbl){
+  const a=summarize(cur),b=summarize(inc);
+  const rowsDef=[['Orders','orders',v=>v],['Customers','customers',v=>v],['Order no. range','maxNo',(v,x)=>x.orders?'1 – '+v:'—'],['Date range','first',(v,x)=>x.first?fmtDate(x.first)+' → '+fmtDate(x.last):'—'],['Sales billed','billed',money],['Received','received',money],['Balance due','due',money],['Open orders','open',v=>v],['Payments recorded','payments',v=>v],['Last edited','updated',v=>v?new Date(v).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'—']];
+  // diff by order no
+  const ma=new Map(cur.orders.map(o=>[+o.no,o])),mb=new Map(inc.orders.map(o=>[+o.no,o]));
+  const onlyB=[...mb.keys()].filter(k=>!ma.has(k)).sort((x,y)=>x-y),onlyA=[...ma.keys()].filter(k=>!mb.has(k)).sort((x,y)=>x-y);
+  const sig=o=>JSON.stringify([o.date,o.customer,o.phone,o.items.map(i=>[i.pid,+i.qty,+i.rate,+i.dlv||0]),o.disc,o.flat,o.override,o.status,o.deliveryDate,(o.payments||[]).map(p=>[p.date,p.mode,+p.amount]),o.notes]);
+  const changed=[...mb.keys()].filter(k=>ma.has(k)&&sig(ma.get(k))!==sig(mb.get(k))).sort((x,y)=>x-y);
+  const list=a=>a.length?a.slice(0,40).map(n=>'#'+n).join(', ')+(a.length>40?' …+'+(a.length-40):''):'none';
+  return`<div class="tw"><table class="cmp"><thead><tr><th></th><th class="num">${curLbl}</th><th class="num">${incLbl}</th></tr></thead><tbody>${rowsDef.map(([l,k,f])=>{const va=f(a[k],a),vb=f(b[k],b);return`<tr><td>${l}</td><td class="num">${va}</td><td class="num ${va!==vb&&k!=='updated'?'diff':''}">${vb}</td></tr>`}).join('')}
+   <tr><td>Products</td><td class="small">${esc(a.products||'—')}</td><td class="small">${esc(b.products||'—')}</td></tr></tbody></table></div>
+   <div class="fsec">Order-level differences</div>
+   <div class="small"><p style="margin:4px 0"><span class="b ok">${onlyB.length}</span> only in ${incLbl.toLowerCase()}: ${list(onlyB)}</p>
+   <p style="margin:4px 0"><span class="b warn">${changed.length}</span> different in both: ${list(changed)}</p>
+   <p style="margin:4px 0"><span class="b bad">${onlyA.length}</span> only in ${curLbl.toLowerCase()} (would be lost by “Replace”): ${list(onlyA)}</p></div>`;
+}
+
+/* ============ Excel import ============ */
+function serialToISO(v){
+  if(v==null||v==='')return'';
+  if(typeof v==='number'){const p=XLSX.SSF.parse_date_code(v);if(!p)return'';return p.y+'-'+String(p.m).padStart(2,'0')+'-'+String(p.d).padStart(2,'0')}
+  if(v instanceof Date)return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  const s=String(v).trim();let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')}
+  m=s.match(/^(\d{1,2})[- ]([A-Za-z]{3})[a-z]*[- ](\d{4})$/);if(m){const mi=MON.findIndex(x=>x.toLowerCase()===m[2].toLowerCase());if(mi>=0)return m[3]+'-'+String(mi+1).padStart(2,'0')+'-'+m[1].padStart(2,'0')}
+  return'';
+}
+const pslug=n=>'p_'+String(n).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+const isBlank=v=>v==null||String(v).trim()==='';
+const toNum=v=>{if(isBlank(v))return null;if(typeof v==='number')return v;const n=parseFloat(String(v).replace(/[₹,\s]/g,''));return isNaN(n)?null:n};
+function parseWorkbook(buf){
+  const wb=XLSX.read(buf,{type:'array'});
+  const sheetRows=n=>{const ws=wb.Sheets[n];return ws?XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}):null};
+  let oName=wb.SheetNames.find(n=>n.trim().toLowerCase()==='orders');
+  if(!oName)oName=wb.SheetNames.find(n=>(sheetRows(n)||[]).slice(0,10).some(r=>r.some(c=>/order\s*no/i.test(String(c||'')))));
+  if(!oName)throw new Error('Could not find an “Orders” sheet with an “Order No” column.');
+  const rows=sheetRows(oName);const hi=rows.findIndex(r=>r.some(c=>/order\s*no/i.test(String(c||''))));
+  const H=rows[hi].map(h=>String(h||'').replace(/\s+/g,' ').trim().toLowerCase());
+  const col=re=>H.findIndex(h=>re.test(h));
+  const C={no:col(/^order no/),date:col(/^order date/),cust:col(/^customer/),phone:col(/^phone|^mobile/),disc:col(/^discount/),flat:col(/^flat/),offer:col(/^offer/),ov:col(/^amount override/),mode:col(/^payment mode/),rec:col(/^amount received/),status:col(/^delivery status/),ddate:col(/^delivery date/),notes:col(/^notes?$|^notes /)};
+  if(C.cust<0)throw new Error('No “Customer” column found on '+oName+'.');
+  const prodCols=[];rows[hi].forEach((h,i)=>{const s=String(h||'');if(/\(qty\)/i.test(s)){prodCols.push({i,name:s.split(/\n|\(qty\)/i)[0].trim()})}});
+  // rates
+  const rates={};const rr=sheetRows(wb.SheetNames.find(n=>n.trim().toLowerCase()==='rates')||'');
+  if(rr)rr.slice(1).forEach(r=>{if(r&&!isBlank(r[0])&&typeof r[1]==='number')rates[String(r[0]).trim().toLowerCase()]={rate:r[1],note:r[2]?String(r[2]):''}});
+  const products=prodCols.map(p=>({id:pslug(p.name),name:p.name,rate:(rates[p.name.toLowerCase()]||{}).rate||0,note:(rates[p.name.toLowerCase()]||{}).note||'',active:true}));
+  // lists
+  const lists={payModes:[],offers:[]};const lr=sheetRows(wb.SheetNames.find(n=>n.trim().toLowerCase()==='lists')||'');
+  if(lr&&lr[0]){const lh=lr[0].map(h=>String(h||'').toLowerCase());const pi=lh.findIndex(h=>/payment mode/.test(h)),oi=lh.findIndex(h=>/offer/.test(h));
+    lr.slice(1).forEach(r=>{if(pi>=0&&!isBlank(r[pi]))lists.payModes.push(String(r[pi]).trim());if(oi>=0&&!isBlank(r[oi])){lists.offers.push(parseOfferName(String(r[oi]).trim()))}})}
+  // orders
+  const orders=[],warn=[];let skipped=0;const g=(r,i)=>i>=0?r[i]:null;
+  rows.slice(hi+1).forEach((r,ix)=>{
+    if(!r)return;const no=toNum(g(r,C.no)),cust=g(r,C.cust);
+    if(no==null&&isBlank(cust))return;
+    if(isBlank(cust)){skipped++;warn.push('Row '+(hi+2+ix)+': no customer — skipped');return}
+    const items=prodCols.map(p=>{const q=toNum(r[p.i]);const pr=products.find(x=>x.name===p.name);return q?{pid:pr.id,name:pr.name,qty:q,rate:pr.rate,dlv:0}:null}).filter(Boolean);
+    let disc=toNum(g(r,C.disc));if(disc!=null&&disc<=1)disc=r2(disc*100);
+    const status=isBlank(g(r,C.status))?'':String(g(r,C.status)).trim();
+    const date=serialToISO(g(r,C.date)),ddate=serialToISO(g(r,C.ddate));
+    const rec=toNum(g(r,C.rec)),mode=isBlank(g(r,C.mode))?'':String(g(r,C.mode)).trim();
+    const o={id:uid('o'),no:no!=null?no:0,date,customer:String(cust).trim(),phone:isBlank(g(r,C.phone))?'':String(g(r,C.phone)).trim(),items,disc:disc??'',flat:toNum(g(r,C.flat))??'',offer:isBlank(g(r,C.offer))?'':String(g(r,C.offer)).trim(),
+      override:toNum(g(r,C.ov))??'',payments:rec?[{id:uid('p'),date:ddate||date||today(),mode,amount:rec,ref:'Imported from Excel'}]:[],status,deliveryDate:ddate,notes:isBlank(g(r,C.notes))?'':String(g(r,C.notes)).trim(),payMode:mode,createdAt:nowISO(),updatedAt:nowISO(),log:[{at:nowISO(),msg:'Imported from Excel'}]};
+    if(status==='Delivered')o.items.forEach(i=>i.dlv=i.qty);
+    if(status&&!DELIVERY.includes(status))warn.push('#'+o.no+': unknown delivery status “'+status+'” kept as is');
+    orders.push(o)});
+  // fix missing / duplicate order numbers
+  let mx=orders.reduce((m,o)=>Math.max(m,o.no),0);const seen=new Set();
+  orders.forEach(o=>{if(!o.no||seen.has(o.no)){const old=o.no;o.no=++mx;warn.push((old?'Duplicate #'+old:'Missing order no')+' for '+o.customer+' → given #'+o.no)}seen.add(o.no)});
+  return{sheet:oName,products,lists,orders,warn,skipped,prodCols:prodCols.length};
+}
+function importPreview(res,fname){
+  const tmp=blankDB();tmp.products=res.products;tmp.orders=res.orders;
+  const merged=JSON.parse(JSON.stringify(DB));res.products.forEach(p=>{if(!merged.products.some(x=>x.id===p.id))merged.products.push(p)});
+  const has=DB.orders.length>0;
+  const checkN=res.orders.filter(hasCheck).length,tbr=res.orders.filter(o=>o.override===''&&o.items.length).length;
+  openModal(`<div class="mh"><h3>Import Excel — review before applying</h3><button class="iconbtn" data-act="modal-close">✕</button></div>
+  <div class="mb"><p class="muted small" style="margin-top:0">File <b>${esc(fname)}</b> · sheet “${esc(res.sheet)}” · ${res.prodCols} product columns found</p>
+  <div class="fsec" style="margin-top:0">Products &amp; rates found</div>
+  <div class="listrow">${res.products.map(p=>`<span class="tag" style="padding-right:10px">${esc(p.name)} · <b>${money(p.rate)}</b>${/estimate/i.test(p.note)?' <span class="b warn">estimate</span>':''}</span>`).join('')}</div>
+  <div class="fsec">Comparison</div>
+  ${compareSummary(DB,tmp,'Current data','Excel file')}
+  <div class="fsec">Things to know</div>
+  <ul class="small" style="margin:0;padding-left:18px">
+   <li>${res.orders.length} orders read${res.skipped?', '+res.skipped+' skipped':''}. Formulas are not copied — amounts, balances and next actions are recalculated here using the same rules.</li>
+   <li>“Amount Received” becomes one dated payment per order (date = delivery date or order date).</li>
+   <li>${checkN} orders carry a CHECK note · ${tbr} have no override and are priced at list rates (were TBR).</li>
+   ${res.warn.slice(0,12).map(w=>`<li style="color:var(--warn)">${esc(w)}</li>`).join('')}${res.warn.length>12?`<li>…and ${res.warn.length-12} more</li>`:''}
+  </ul>
+  <div class="fsec">How to import</div>
+  <div class="radio">
+   <label><input type="radio" name="imode" value="replace" ${has?'':'checked'}><div><b>Replace all data</b><div class="small muted">Start clean from this Excel (products, lists and orders).</div></div></label>
+   ${has?`<label><input type="radio" name="imode" value="new" checked><div><b>Add only new order numbers</b><div class="small muted">Orders whose number already exists here are left untouched.</div></div></label>
+   <label><input type="radio" name="imode" value="upsert"><div><b>Add new + overwrite matching numbers</b><div class="small muted">Excel wins for orders that exist in both (payments added here would be replaced).</div></div></label>`:''}
+  </div><p class="small muted">A restore point of the current data is saved first.</p></div>
+  <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="i_ok">Import</button></div>`);
+  $('#i_ok').onclick=async()=>{
+    if(!needSynced())return;
+    const mode=(document.querySelector('[name=imode]:checked')||{}).value||'replace';
+    let T,note='';
+    if(mode==='replace'){T=blankDB();T.products=res.products;T.orders=res.orders;
+      if(res.lists.payModes.length)T.lists.payModes=res.lists.payModes;if(res.lists.offers.length)T.lists.offers=res.lists.offers}
+    else{T=normalizeDB(clone(CACHE.data));
+      res.products.forEach(p=>{if(!T.products.some(x=>x.id===p.id))T.products.push(p)});
+      res.lists.payModes.forEach(x=>{if(!T.lists.payModes.includes(x))T.lists.payModes.push(x)});
+      res.lists.offers.forEach(x=>{if(!T.lists.offers.some(y=>y.name===x.name))T.lists.offers.push(x)});
+      const m=new Map(T.orders.map(o=>[+o.no,o]));let a=0,u=0;
+      res.orders.forEach(o=>{const e=m.get(+o.no);if(!e){T.orders.push(o);a++}else if(mode==='upsert'){Object.assign(e,o,{id:e.id,log:e.log,v:(+e.v||0)+1});u++}});
+      note=a+' orders added'+(u?', '+u+' overwritten':'')}
+    const nc=addCustomersFromOrders(T);
+    $('#i_ok').disabled=true;$('#i_ok').textContent='Uploading…';
+    const ok=await cloudReplace(T,'Excel import ('+{replace:'replace all',new:'new order numbers only',upsert:'add + overwrite'}[mode]+') from '+fname);
+    if(ok){UI.tab='dash';refresh();toast((note||res.orders.length+' orders imported')+(nc?' · '+nc+' customers added':''))}
+    else{const b=$('#i_ok');if(b){b.disabled=false;b.textContent='Import'}}
+  };
+}
+
+/* ============ Excel export ============ */
+function isoSerial(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return(Date.UTC(y,m-1,d)-Date.UTC(1899,11,30))/864e5}
+function exportXlsx(scope){
+  if(typeof XLSX==='undefined')return toast('Excel library did not load — check internet connection.');
+  const list=(scope==='filtered'?filteredOrders().map(r=>r.o):DB.orders.slice()).sort((a,b)=>a.no-b.no);
+  const P=DB.products;
+  const head=['Order No','Order Date','Customer','Phone',...P.map(p=>p.name+'\n(qty)'),'Total Units','List Value (₹)','Discount %','Flat Discount (₹)','Offer / Reason','Amount Override (₹)','Order Amount (₹)','Payment Mode','Amount Received (₹)','Balance Due (₹)','Payment Status','Delivery Status','Delivery Date','Days Open','Next Action','Notes'];
+  const aoa=[head];
+  list.forEach(o=>{const c=calc(o);aoa.push([o.no,isoSerial(o.date),o.customer,o.phone,...P.map(p=>{const q=o.items.filter(i=>i.pid===p.id).reduce((s,i)=>s+(+i.qty||0),0);return q||null}),c.units,c.listValue,o.disc!==''&&o.disc!=null?o.disc/100:null,o.flat!==''&&o.flat!=null?+o.flat:null,o.offer,o.override===''?null:+o.override,c.amount,o.payMode||((o.payments||[]).slice(-1)[0]||{}).mode||'',c.received||null,c.balance,c.pay,o.status,isoSerial(o.deliveryDate),c.daysOpen,c.next,o.notes])});
+  const ws=XLSX.utils.aoa_to_sheet(aoa);const dcols=[1,head.indexOf('Delivery Date')],pc=head.indexOf('Discount %');
+  for(let r=1;r<aoa.length;r++){dcols.forEach(ci=>{const a=XLSX.utils.encode_cell({r,c:ci});if(ws[a]&&ws[a].v!=null)ws[a].z='dd-mmm-yyyy'});const a=XLSX.utils.encode_cell({r,c:pc});if(ws[a])ws[a].z='0.##%'}
+  ws['!cols']=head.map((h,i)=>({wch:i===2?32:i===head.length-1?50:/Next/.test(h)?26:14}));ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
+  const pa=[['Order No','Customer','Payment Date','Mode','Amount (₹)','Ref']];list.forEach(o=>(o.payments||[]).forEach(p=>pa.push([o.no,o.customer,isoSerial(p.date),p.mode,+p.amount,p.ref||''])));
+  const ws2=XLSX.utils.aoa_to_sheet(pa);for(let r=1;r<pa.length;r++){const a=XLSX.utils.encode_cell({r,c:2});if(ws2[a])ws2[a].z='dd-mmm-yyyy'}ws2['!cols']=[{wch:9},{wch:32},{wch:13},{wch:22},{wch:12},{wch:30}];
+  const ws3=XLSX.utils.aoa_to_sheet([['Product','Rate (₹ per unit)','Note'],...P.map(p=>[p.name,p.rate,p.note||''])]);ws3['!cols']=[{wch:20},{wch:16},{wch:60}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Orders');XLSX.utils.book_append_sheet(wb,ws2,'Payments');XLSX.utils.book_append_sheet(wb,ws3,'Rates');
+  XLSX.writeFile(wb,'PEPAL_Orders_'+(scope==='filtered'?'filtered_':'')+stamp()+'.xlsx');toast(list.length+' orders exported');
+}
+
+/* ============ events ============ */
+function setTab(t){UI.tab=t;LS.set('pepal_tab',t);window.scrollTo(0,0);if(t==='log')LOGS=null;refresh()}
+document.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  if(el.tagName==='A')return;
+  const a=el.dataset.act,id=el.dataset.id;
+  switch(a){
+    case'tab':setTab(el.dataset.tab);break;
+    case'theme':{const r=document.documentElement;const dark=r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);r.dataset.theme=dark?'light':'dark';LS.set(THEMEKEY,r.dataset.theme);renderHeader();break}
+    case'login':doLogin();break;
+    case'logout':doLogout();break;
+    case'account':accountBox();break;
+    case'sync-pill':if(ISSUES.length)openIssues();else sync(true);break;
+    case'sync-now':closeModal();sync(true);break;
+    case'issues':openIssues();break;
+    case'iss-fix':fixIssue(el.dataset.i,el.dataset.how,el.dataset.how==='pick'?($('#pick_'+el.dataset.i)||{}).value:el.dataset.v);break;
+    case'new-order':if(!DB.products.length){toast(isAdmin()?'Add products first (Settings) or import the Excel':'ADMIN has to add products first');if(isAdmin())setTab('settings');break}orderForm(null);break;
+    case'new-order-for':{const g=customerGroups().find(x=>x.k===el.dataset.k);if(!DB.products.length){toast('No products yet');break}orderForm(null,{customer:g.name,phone:g.phone||'',payMode:(g.orders.slice(-1)[0]||{}).payMode||''});break}
+    case'edit-order':orderForm(id);break;
+    case'f-use-next':{const n=$('#f_no');if(n){n.value=nextNoExcept(($('#ofrm')||{}).__oid);n.dispatchEvent(new Event('input',{bubbles:true}));$('#f_err').textContent=''}break}
+    case'open-order':e.stopPropagation();pushDrawer(orderDrawer(id));break;
+    case'open-cust':pushDrawer(custDrawer(el.dataset.k));break;
+    case'add-customer':customerForm(null);break;
+    case'edit-customer':customerForm(id);break;
+    case'del-customer':{const c=DB.customers.find(x=>x.id===id);if(await confirmBox('Delete customer?',`Remove <b>${esc(c.name)}</b> from the customer list? Their orders are not touched.`,'Delete',true)){queueOp({type:'customer.delete',customerId:id},'Customer removed from list');drawerStack.pop();renderDrawer()}break}
+    case'save-cust':{const g=customerGroups().find(x=>x.k===el.dataset.k);customerForm(null,{name:g.name,phone:g.phone||''});break}
+    case'drill':pushDrawer(listDrawer(el.dataset.k,el.dataset.v));break;
+    case'drill-table':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:{k:el.dataset.k,v:el.dataset.v}};closeDrawer();setTab('orders');break;
+    case'clear-drill':UI.of.drill=null;refresh();break;
+    case'reset-filters':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:null};refresh();break;
+    case'sort':{const c=el.dataset.col;if(UI.sort.col===c)UI.sort.dir*=-1;else UI.sort={col:c,dir:['no','date','amount','received','balance','days','items'].includes(c)?-1:1};refresh();break}
+    case'todo-chip':UI.todoChip=el.dataset.v;refresh();break;
+    case'gaps':{const g=orderGaps();openModal(`<div class="mh"><h3>Skipped order numbers (${g.length})</h3><button class="iconbtn" data-act="modal-close">✕</button></div><div class="mb"><p class="muted small" style="margin-top:0">These numbers were never used between the first and the last order. If an order was deleted, ADMIN can check the Activity log.</p><div class="listrow">${g.map(n=>`<span class="tag" style="padding-right:10px">#${n}</span>`).join('')}</div></div><div class="mf"><button class="btn" data-act="modal-close">Close</button></div>`,'narrow');break}
+    case'drawer-close':closeDrawer();break;
+    case'drawer-back':drawerStack.pop();renderDrawer();break;
+    case'modal-close':closeModal();break;
+    case'pay-order':payForm(id);break;
+    case'set-status':{const o=byId(id);if(el.dataset.s==='Cancelled'&&!(await confirmBox('Cancel order #'+o.no+'?','Cancelled orders are excluded from sales and their balance becomes 0. You can change the status back later.','Cancel order',true)))break;setStatus(o,el.dataset.s);break}
+    case'del-pay':{const o=byId(id);const p=o.payments.find(p=>p.id===el.dataset.p);if(await confirmBox('Remove payment?',`${money(+p.amount)} on ${fmtDate(p.date)} (${esc(p.mode)}) will be removed from order #${o.no}.`,'Remove',true))queueOp({type:'payment.del',orderId:o.id,paymentId:p.id},'Payment removed');break}
+    case'resolve-check':{const o=byId(id);queueOp({type:'order.patch',orderId:o.id,fields:{notes:o.notes.split('|').map(s=>s.trim()).filter(s=>!/^CHECK/i.test(s)).join(' | ')},why:'CHECK resolved'},'CHECK resolved');break}
+    case'dup-order':{const o=byId(id);orderForm(null,{customer:o.customer,phone:o.phone,items:o.items.map(i=>({pid:i.pid,name:i.name,qty:i.qty,rate:(DB.products.find(p=>p.id===i.pid)||i).rate,dlv:0})),offer:o.offer,disc:o.disc,flat:o.flat,payMode:o.payMode});break}
+    case'del-order':{const o=byId(id);if(await confirmBox('Delete order #'+o.no+'?',`This removes <b>${esc(o.customer)}</b>'s order and its payments for everyone. Use “Cancel order” instead if you want to keep a record. (ADMIN can restore it from the Activity log.)`,'Delete',true)){drawerStack.pop();if(!drawerStack.length)closeDrawer();queueOp({type:'order.delete',orderId:o.id},'Order #'+o.no+' deleted')}break}
+    case'backup':doBackup();break;
+    case'restore':$('#fileJson').value='';$('#fileJson').click();break;
+    case'versions':openVersions();break;
+    case'version-get':getVersion(id);break;
+    case'upload-old':{const d=normalizeDB(jget(OLDKEY,null));restorePreview(d,'offline data in this browser ('+d.orders.length+' orders)',{reason:'Uploaded offline browser data',after:()=>{LS.set(OLDKEY+'_uploaded',LS.get(OLDKEY));LS.del(OLDKEY);refresh()}});break}
+    case'import-xlsx':if(typeof XLSX==='undefined'){toast('Excel library did not load — connect to the internet and reload.');break}$('#fileXlsx').value='';$('#fileXlsx').click();break;
+    case'export-xlsx':exportXlsx(el.dataset.scope);break;
+    case'clear-all':wipeBox();break;
+    case'add-product':setMasters(m=>{m.products.push({id:uid('p_'),name:'New product',rate:0,note:'',active:true})},'Product added');setTimeout(()=>{const i=document.querySelectorAll('[data-pf=name]');const l=i[i.length-1];if(l){l.focus();l.select()}},60);break;
+    case'del-product':{const p=DB.products.find(x=>x.id===id);if(await confirmBox('Delete product?','Remove <b>'+esc(p.name)+'</b>? It is not used in any order.','Delete',true))setMasters(m=>{m.products=m.products.filter(x=>x.id!==id)},'Product deleted');break}
+    case'apply-rate':{const p=DB.products.find(x=>x.id===id);const os=DB.orders.filter(o=>{const c=calc(o);return c.open&&!c.hasOv&&o.items.some(i=>i.pid===p.id&&+i.qty>0&&+i.rate!==+p.rate)});
+      if(await confirmBox('Apply new rate?',`Set ${esc(p.name)} to ${money(p.rate)} on ${os.length} open order(s) that have no amount override: ${os.map(o=>'#'+o.no).join(', ')}.`,'Apply')){os.forEach(o=>queueOp({type:'order.patch',orderId:o.id,fields:{items:o.items.map(i=>i.pid===p.id?Object.assign({},i,{rate:p.rate}):i)},why:p.name+' rate updated'}));toast('Rate applied to '+os.length+' orders')}break}
+    case'del-mode':setMasters(m=>{m.lists.payModes.splice(+el.dataset.i,1)},'Removed');break;
+    case'add-mode':{const v=$('#newMode').value.trim();if(v&&!DB.lists.payModes.includes(v))setMasters(m=>{m.lists.payModes.push(v)},'Added');break}
+    case'del-offer':setMasters(m=>{m.lists.offers.splice(+el.dataset.i,1)},'Removed');break;
+    case'add-offer':setMasters(m=>{m.lists.offers.push({name:'New offer',kind:'',val:null})});break;
+    case'form-add-pay':{const F=$('#ofrm');const tb=$('#payRows');tb.insertAdjacentHTML('beforeend',F.__payRow({id:uid('p'),date:today(),mode:$('#f_pm').value||DB.lists.payModes[0]||'',amount:'',ref:''}));tb.lastElementChild.querySelector('[data-pp=amount]').focus();break}
+    case'form-del-pay':el.closest('tr').remove();$('#ofrm').dispatchEvent(new Event('input'));break;
+    // admin: log & users
+    case'log-reload':LOGS=null;refresh();break;
+    case'log-more':LOGLIMIT+=500;refresh();break;
+    case'log-clear':{const days=+$('#clearDays').value;const lbl=$('#clearDays').selectedOptions[0].textContent;
+      if(await confirmBox('Clear old log entries?',`Entries older than <b>${lbl}</b> will be removed from the log and moved to an archive file in Google Drive.`,'Clear',true)){const r=await apiOrToast('clearLogs',{days});if(r.ok){LOGS=r.logs;refresh();toast(r.removed+' entries archived')}}break}
+    case'log-restore':{const en=LOGS.find(x=>x.id===id);if(!en||!en.snap)break;const o=orderFields(en.snap);
+      if(DB.orders.some(z=>+z.no===+o.no))toast('#'+o.no+' is in use now — you will be asked for a new number');
+      queueOp({type:'order.upsert',order:o,create:true,restoredFromLog:true},'Restoring order #'+o.no+'…');break}
+    case'log-restore-cust':{const en=LOGS.find(x=>x.id===id);if(!en||!en.snap)break;const c=en.snap;queueOp({type:'customer.add',customer:{id:c.id,name:c.name,phone:c.phone,place:c.place,notes:c.notes}},'Customer restored');break}
+    case'user-add':userForm(null);break;
+    case'user-reset':userForm(el.dataset.n);break;
+    case'user-gen':$('#u_pw').value=genPassword();break;
+    case'user-reload':USERS=null;$('#usersBox').innerHTML=usersTable();break;
+    case'user-role':{const n=el.dataset.n,r=el.dataset.r;if(await confirmBox('Change role?',`Make <b>${esc(n)}</b> ${r==='admin'?'an <b>Admin</b> (full control, including users and deleting data)':'<b>Staff</b>'}?`,'Change')){const x=await apiOrToast('setUser',{name:n,role:r});if(x.ok){USERS=x.users;refresh()}}break}
+    case'user-signout':{const n=el.dataset.n;const x=await apiOrToast('signOutUser',{name:n});if(x.ok){USERS=x.users;refresh();toast(n+' signed out of all devices')}break}
+    case'user-del':{const n=el.dataset.n;if(await confirmBox('Remove login?',`<b>${esc(n)}</b> will no longer be able to sign in, and is signed out everywhere. Their past log entries stay.`,'Remove',true)){const x=await apiOrToast('delUser',{name:n});if(x.ok){USERS=x.users;refresh()}}break}
+    case'copy-login':{try{await navigator.clipboard.writeText(el.dataset.t);toast('Copied')}catch(err){toast('Copy failed — select the text instead')}break}
+  }
+});
+$('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal()});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.of){UI.of[t.dataset.of]=t.type==='checkbox'?t.checked:t.value;refresh();return}
+  if(t.dataset.logf){LOGF[t.dataset.logf]=t.value;LOGLIMIT=300;refresh();return}
+  if(t.id==='csort'){UI.custSort=t.value;refresh();return}
+  if(t.dataset.pf&&isAdmin()){const f=t.dataset.pf,pid=t.dataset.id;
+    setMasters(m=>{const p=m.products.find(x=>x.id===pid);if(!p)return false;if(f==='active')p.active=t.checked;else if(f==='rate')p.rate=+t.value||0;else p[f]=t.value.trim()},f==='rate'?'Rate saved — existing orders keep their own rate':'Saved');return}
+  if(t.dataset.off&&isAdmin()){const i=+t.dataset.i,f=t.dataset.off;
+    setMasters(m=>{const o=m.lists.offers[i];if(f==='val')o.val=t.value===''?null:+t.value;else if(f==='kind'){o.kind=t.value;if(!o.kind)o.val=null}else o.name=t.value.trim()},'Saved');return}
+});
+let qT;
+document.addEventListener('input',e=>{
+  const t=e.target;
+  const keep=(sel,fn)=>{clearTimeout(qT);qT=setTimeout(()=>{fn();const pos=t.selectionStart;refresh();const n=$(sel);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(er){}}},180)};
+  if(t.id==='oq')keep('#oq',()=>{UI.of.q=t.value});
+  if(t.id==='cq')keep('#cq',()=>{UI.custQ=t.value});
+  if(t.id==='logq')keep('#logq',()=>{LOGF.q=t.value});
+  if(t.id==='gsearch'){clearTimeout(qT);qT=setTimeout(()=>{UI.of.q=t.value;UI.of.drill=null;if(UI.tab!=='orders')setTab('orders');else refresh()},200)}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&(e.target.id==='l_pw'||e.target.id==='l_user'||e.target.id==='l_api')){e.preventDefault();doLogin();return}
+});
+$('#gsearch').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=filteredOrders();if(r.length===1)pushDrawer(orderDrawer(r[0].o.id))}});
+document.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if(e.key==='Escape'){if($('#modal').classList.contains('on'))closeModal();else if(drawerStack.length)closeDrawer();return}
+  if(typing||e.ctrlKey||e.metaKey||e.altKey||!signedIn())return;
+  if(e.key==='/'){e.preventDefault();$('#gsearch').focus()}
+  else if(e.key==='n'||e.key==='N'){if(!$('#modal').classList.contains('on')){e.preventDefault();$('[data-act=new-order]').click()}}
+});
+$('#fileJson').addEventListener('change',e=>{const f=e.target.files[0];if(f)readJsonFile(f)});
+$('#fileXlsx').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{importPreview(parseWorkbook(new Uint8Array(r.result)),f.name)}catch(err){console.error(err);toast('Import failed: '+err.message)}};r.readAsArrayBuffer(f)});
+window.addEventListener('beforeunload',e=>{if(QUEUE.length&&SYNC.offline){e.preventDefault();e.returnValue=''}});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',renderHeader);
+
+/* ============ init ============ */
+(function(){const t=LS.get(THEMEKEY);if(t)document.documentElement.dataset.theme=t;
+  if(!['dash','todo','orders','customers','log','settings'].includes(UI.tab))UI.tab='dash';
+  buildView();refresh();if(signedIn())sync()})();
+</script>
+</body>
+</html>
