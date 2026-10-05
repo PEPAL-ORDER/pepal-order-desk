@@ -200,6 +200,11 @@ th.sort{cursor:pointer}th.sort:hover{color:var(--text)}
 .userchip:hover{border-color:var(--accent)}
 body.locked .search,body.locked #syncPill,body.locked #userChip,body.locked .hbar [data-act=new-order],body.locked #tabs{display:none!important}
 body:not(.admin) .adminonly{display:none!important}
+.seg{display:inline-flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden;width:100%}
+.seg button{flex:1;padding:7px 8px;border:0;background:var(--surface);cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--border2)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.dgrp{display:flex;gap:4px}.dgrp input{min-width:0;flex:1}.dgrp select{width:72px;flex:none;padding:7px 4px}
 .cmp td.diff{color:var(--warn);font-weight:700}
 
 /* empty */
@@ -270,7 +275,7 @@ kbd{font-size:11px;padding:1px 5px;border:1px solid var(--border2);border-radius
 /* ============ cloud settings ============ */
 // ↓↓↓ Paste your Apps Script Web app URL (ends with /exec) between the quotes before publishing.
 //     If left empty, the sign-in screen asks for it once on each device.
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwoD-IbsIS3Q15w9hmN4LPX8Tca-7ygwQnlJg1qFP7DrYbQG9EOMeoEac3dqjs13lfC/exec';
+const DEFAULT_API_URL = '';
 
 const THEMEKEY='pepal_order_desk_theme', OLDKEY='pepal_order_desk_v1';
 const CFGKEY='pepal_cloud_cfg', CACHEKEY='pepal_cloud_cache', QKEY='pepal_cloud_queue', ISSKEY='pepal_cloud_issues';
@@ -283,7 +288,7 @@ const jget=(k,d)=>{try{const v=LS.get(k);return v?JSON.parse(v):d}catch(e){retur
 const clone=o=>JSON.parse(JSON.stringify(o));
 const DELIVERY=['Yet to Deliver','Dispatched','Part Delivered','Delivered','Cancelled'];
 const PAYSTAT=['Paid','Part paid','Unpaid','Amount TBC','n/a'];
-const ORDER_FIELDS=['id','no','date','customer','phone','items','disc','flat','offer','override','payments','status','deliveryDate','notes','payMode'];
+const ORDER_FIELDS=['id','no','date','channel','customer','phone','items','disc','flat','offer','override','payments','status','deliveryDate','notes','payMode'];
 
 function nowISO(){return new Date().toISOString()}
 function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -294,7 +299,10 @@ function normalizeDB(d){
   d.products=d.products||[];d.customers=d.customers||[];d.lists.offers=(d.lists.offers||[]).map(normOffer);
   d.orders=(d.orders||[]).map(o=>Object.assign({items:[],payments:[],log:[],status:'',notes:''},o));return d}
 function normOffer(x){if(x.kind!==undefined)return x;const v=x.pct!=null&&x.pct!==''?+x.pct:(x.flat!=null&&x.flat!==''?+x.flat:null);return{name:x.name,kind:x.pct!=null&&x.pct!==''?'pct':(x.flat!=null&&x.flat!==''?'flat':''),val:v}}
+const CHANNELS=['Online','Offline'];
 function parseOfferName(n){let m=n.match(/^(\d+(?:\.\d+)?)\s*%/);if(m)return{name:n,kind:'pct',val:+m[1]};
+  m=n.match(/([\d,]+(?:\.\d+)?)/);if(m&&/flat|total|bill/i.test(n))return{name:n,kind:'flat',val:+m[1].replace(/,/g,'')};
+  if(m&&/off|less/i.test(n))return{name:n,kind:'unit',val:+m[1].replace(/,/g,'')};
   m=n.match(/^(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)\s*(?:\/-)?\s*(?:off|flat|rs|₹)/i)||n.match(/^(?:₹|rs\.?)\s*([\d,]+(?:\.\d+)?)/i);if(m)return{name:n,kind:'flat',val:+m[1].replace(/,/g,'')};return{name:n,kind:'',val:null}}
 const defaultOffer=()=>((DB.lists.offers.find(x=>/^standard$/i.test(x.name))||DB.lists.offers[0]||{}).name||'');
 
@@ -418,9 +426,10 @@ function calc(o){
   const items=o.items.filter(i=>+i.qty>0);
   const units=items.reduce((s,i)=>s+(+i.qty),0);
   const listValue=r2(items.reduce((s,i)=>s+(+i.qty)*(+i.rate||0),0));
+  const itemDisc=r2(items.reduce((s,i)=>s+lineDisc(i),0));
   const hasOv=o.override!==null&&o.override!==undefined&&o.override!=='';
   const disc=+o.disc||0,flat=+o.flat||0;
-  const amount=hasOv?+o.override:(listValue?r2(Math.max(0,listValue*(1-disc/100)-flat)):null);
+  const amount=hasOv?+o.override:(listValue?r2(Math.max(0,(listValue-itemDisc)*(1-disc/100)-flat)):null);
   const received=r2((o.payments||[]).reduce((s,p)=>s+(+p.amount||0),0));
   const st=o.status||'';const cancelled=st==='Cancelled';
   const balance=amount==null?null:(cancelled?0:r2(amount-received));
@@ -436,8 +445,12 @@ function calc(o){
   else{const d=st==='Dispatched'?'Awaiting delivery':st==='Part Delivered'?'Deliver balance qty':'Dispatch order';next=pay==='Paid'?d:d+' + collect payment'}
   const open=next!=='Complete'&&next!=='Closed';
   const discount=amount!=null&&listValue?r2(listValue-amount):0;
-  return{units,listValue,amount,received,balance,pay,overpaid,daysOpen,next,open,cancelled,discount,status:st,hasOv};
+  return{units,itemDisc,listValue,amount,received,balance,pay,overpaid,daysOpen,next,open,cancelled,discount,status:st,hasOv};
 }
+// Per-item discount: 'unit' = ₹ off each unit, 'pct' = % off this line
+function lineDisc(i){const q=+i.qty||0,r=+i.rate||0,v=+i.dval||0;if(!q||!v)return 0;return i.dkind==='pct'?r2(q*r*Math.min(v,100)/100):i.dkind==='unit'?r2(q*Math.min(v,r)):0}
+const lineDiscTxt=i=>!(+i.dval)?'':i.dkind==='pct'?'−'+i.dval+'%':i.dkind==='unit'?'−'+money(+i.dval)+'/unit':'';
+function chanBadge(o){return o.channel==='Online'?'<span class="b info">🌐 Online</span>':o.channel==='Offline'?'<span class="b violet">🏬 Offline</span>':''}
 function itemQtyState(o,it){
   const q=+it.qty||0,st=o.status||'';
   const r={sold:0,delivered:0,dispatched:0,toDispatch:0,notSet:0};
@@ -465,6 +478,7 @@ function buildCtx(){
   return{ph};
 }
 const CHECKS=[
+  {id:'nochan',label:'Order type (Online / Offline) not set',lvl:'warn',t:o=>!o.channel},
   {id:'check',label:'Notes with a CHECK flag',lvl:'warn',t:o=>hasCheck(o)},
   {id:'tbc',label:'Amount not confirmed (no qty / price)',lvl:'bad',t:(o,c)=>c.amount==null&&!c.cancelled},
   {id:'nostatus',label:'Delivery status not set',lvl:'warn',t:(o,c)=>!c.status},
@@ -472,7 +486,7 @@ const CHECKS=[
   {id:'nophone',label:'Phone number missing',lvl:'',t:o=>!digits(o.phone)},
   {id:'badphone',label:'Phone not 10 digits (maybe truncated)',lvl:'warn',t:o=>{const d=digits(o.phone);return d&&!(d.length===10||(d.length===12&&d.startsWith('91')))||/0000$/.test(d)}},
   {id:'sharedphone',label:'Same phone used by different names',lvl:'warn',t:(o,c,x)=>{const k=phoneKey(o.phone);return k.length===10&&x.ph[k]&&x.ph[k].size>1}},
-  {id:'lowprice',label:'Price far below list (>40% off, no discount entered)',lvl:'warn',t:(o,c)=>c.amount!=null&&c.listValue>0&&c.amount<c.listValue*0.6&&!(+o.disc)&&!(+o.flat)&&!/%|off/i.test(o.offer||'')},
+  {id:'lowprice',label:'Price far below list (>40% off, no discount entered)',lvl:'warn',t:(o,c)=>c.amount!=null&&c.listValue>0&&c.amount<c.listValue*0.6&&!(+o.disc)&&!(+o.flat)&&!c.itemDisc&&!/%|off/i.test(o.offer||'')},
   {id:'overpaid',label:'Received more than order amount',lvl:'bad',t:(o,c)=>c.overpaid},
   {id:'nodeldate',label:'Delivered but no delivery date',lvl:'',t:(o,c)=>c.status==='Delivered'&&!o.deliveryDate},
 ];
@@ -498,6 +512,7 @@ function drill(k,v){
     case'month':return{t:'Orders in '+monthLabel(v),f:o=>nc(o)&&(v==='undated'?!o.date:(o.date||'').slice(0,7)===v)};
     case'mode':return{t:'Payments by '+(v||'(no mode)'),f:o=>nc(o)&&(o.payments||[]).some(p=>(p.mode||'')===v)};
     case'offer':return{t:'Offer: '+(v||'(none)'),f:o=>nc(o)&&(o.offer||'')===v};
+    case'chan':return{t:v?v+' orders':'Order type not set',f:o=>nc(o)&&(o.channel||'')===v};
     case'disc':return{t:'Orders sold below list value',f:o=>nc(o)&&C(o).discount>0.5};
     case'check':{const ck=CHECKS.find(c=>c.id===v);const x=buildCtx();return{t:ck.label,f:o=>ck.t(o,C(o),x)}}
     case'age':{const[a,b]=v.split('-').map(Number);return{t:'Open '+(b?a+'–'+b:a+'+')+' days',f:o=>{const c=C(o);return c.open&&c.daysOpen!=null&&c.daysOpen>=a&&(!b||c.daysOpen<=b)}}}
@@ -507,7 +522,7 @@ function drill(k,v){
 }
 
 /* ============ UI state ============ */
-const UI={tab:LS.get('pepal_tab')||'dash',of:{q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:null},sort:{col:'no',dir:-1},todoChip:'all',custQ:'',custSort:'balance'};
+const UI={tab:LS.get('pepal_tab')||'dash',of:{q:'',del:'*',pay:'*',month:'*',prod:'*',chan:'*',open:false,drill:null},sort:{col:'no',dir:-1},todoChip:'all',custQ:'',custSort:'balance'};
 let drawerStack=[];
 
 /* ============ Dashboard ============ */
@@ -520,7 +535,7 @@ function dashView(){
   const kpi=(l,v,s,act,cls='')=>`<button class="kpi ${cls}" ${act}><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></button>`;
   let h=`<div class="pagehead"><div class="grow"><h2>Dashboard</h2><div class="muted small">As of ${fmtDate(today())} · cancelled orders excluded · <b>click any number to see the orders behind it</b></div></div></div>
   <div class="kpis">
-   ${kpi('Orders',num(live.length),'all non-cancelled','data-act="drill" data-k="all"')}
+   ${kpi('Orders',num(live.length),live.filter(r=>r.o.channel==='Online').length+' online · '+live.filter(r=>r.o.channel==='Offline').length+' offline','data-act="drill" data-k="all"')}
    ${kpi('Units sold',num(units),num(pending)+' still to dispatch','data-act="drill" data-k="units"')}
    ${kpi('Sales billed',money(billed),'order amounts','data-act="drill" data-k="billed"')}
    ${kpi('Received',money(rec),billed?Math.round(rec/billed*100)+'% collected':'','data-act="drill" data-k="received"','accent')}
@@ -529,6 +544,9 @@ function dashView(){
    ${kpi('Next order no',nextNo(),'auto-filled on new order','data-act="new-order"','static')}
   </div><div class="grid g2">`;
 
+  // order type
+  {const ct=['Online','Offline',''].map(v=>({v,rs:live.filter(r=>(r.o.channel||'')===v)})).filter(x=>x.v||x.rs.length);
+   h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>Online vs Offline orders</h3><span class="muted small grow">cancelled excluded · click a row for its orders</span></div><div class="tw"><table><thead><tr><th>Order type</th><th class="num">Orders</th><th class="num">Units</th><th class="num">Billed</th><th class="num">Received</th><th class="num">Balance due</th><th style="width:28%">Share of orders</th></tr></thead><tbody>${ct.map(x=>`<tr class="click" data-act="drill" data-k="chan" data-v="${x.v}"><td>${x.v?chanBadge({channel:x.v}):'<span class="b warn">Not set</span>'}</td><td class="num"><b>${x.rs.length}</b></td><td class="num">${num(sum(x.rs,r=>r.c.units))}</td><td class="num">${money(sum(x.rs,r=>r.c.amount))}</td><td class="num">${money(sum(x.rs,r=>r.c.received))}</td><td class="num">${money(sum(x.rs,r=>r.c.balance>0?r.c.balance:0))}</td><td><div class="bar"><b style="width:${live.length?x.rs.length/live.length*100:0}%"></b></div></td></tr>`).join('')}</tbody></table></div></div>`;}
   // delivery status
   const dl=['Yet to Deliver','Dispatched','Part Delivered','Delivered','Cancelled',''];
   h+=`<div class="card"><div class="ch"><h3>Delivery status</h3></div><div class="tw"><table><thead><tr><th>Status</th><th class="num">Orders</th><th class="num">Units</th><th class="num">Amount</th></tr></thead><tbody>`;
@@ -624,7 +642,7 @@ function todoView(){
   list.forEach(({o,c})=>{
     const cls=c.daysOpen==null?'':c.daysOpen>15?'late':c.daysOpen>7?'mid':'fresh';
     h+=`<div class="tcard ${cls}">
-      <div><div class="top"><span class="b accent">#${o.no}</span>${pendBadge(o)}<span class="who" data-act="open-order" data-id="${o.id}">${esc(o.customer)}</span>${delBadge(c.status)}${payBadge(c.pay)}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div>
+      <div><div class="top"><span class="b accent">#${o.no}</span>${pendBadge(o)}<span class="who" data-act="open-order" data-id="${o.id}">${esc(o.customer)}</span>${chanBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div>
       <div class="meta">${fmtDate(o.date)} · ${esc(itemsText(o))} · ${o.phone?esc(o.phone):'<i>no phone</i>'}</div>
       <div class="meta"><b style="color:var(--text)">Next:</b> ${esc(c.next)}</div></div>
       <div class="amt"><div class="small muted">Amount ${money(c.amount)}</div>${c.balance>0?`<div class="due">${money(c.balance)} due</div>`:c.amount==null?'<div class="b warn">Amount TBC</div>':'<div class="b ok">Paid</div>'}</div>
@@ -647,11 +665,24 @@ function quickActions(o,c,big){
   if(!big)a.push(`<button class="btn ${sm} ghost" data-act="open-order" data-id="${o.id}">Details →</button>`);
   return a.join('');
 }
-function waText(o,c){
-  const name=String(o.customer||'').replace(/\s*\(.*?\)\s*/g,' ').trim();
-  if(c.balance>0)return`Hello ${name}, greetings from PEPAL!\nThis is a gentle reminder for your order #${o.no} dated ${fmtDate(o.date)} (${itemsText(o)}).\nOrder amount: ${money(c.amount)}\nReceived: ${money(c.received)}\nBalance due: ${money(c.balance)}\nThank you!`;
-  return`Hello ${name}, greetings from PEPAL!\nUpdate on your order #${o.no} (${itemsText(o)}): ${c.status||'being processed'}.\nThank you for choosing PEPAL!`;
-}
+/* ---- WhatsApp message templates (editable by ADMIN in Settings) ---- */
+const WA_DEFAULT={
+  pay:'Hello {name}, greetings from PEPAL!\nThis is a gentle reminder for your order #{no} dated {date} ({items}).\nOrder amount: {amount}\nReceived: {received}\nBalance due: {balance}\nThank you!',
+  update:'Hello {name}, greetings from PEPAL!\nUpdate on your order #{no} ({items}): {status}.\nThank you for choosing PEPAL!',
+  cust:'Hello {name}, greetings from PEPAL!\nA gentle reminder of the balance on your order(s):\n{orders}\nTotal due: {total_due}\nThank you!',
+  hello:'Hello {name}, greetings from PEPAL!'
+};
+const WA_INFO={
+  pay:{t:'Payment reminder (one order)',u:'Order with balance due → 💬 WhatsApp on To Do and order details',ph:['name','no','date','items','amount','received','balance','status','type','phone']},
+  update:{t:'Order update (one order)',u:'Order that is fully paid → 💬 WhatsApp',ph:['name','no','date','items','amount','received','balance','status','type','phone']},
+  cust:{t:'Customer balance reminder (all orders)',u:'Customer details → 💬 WhatsApp balance reminder',ph:['name','orders','total_due','phone']},
+  hello:{t:'Customer greeting',u:'Customer details with nothing due → 💬 WhatsApp',ph:['name','phone']}
+};
+const waTpl=k=>{const w=(DB.lists.wa||{})[k];return w&&String(w).trim()?w:WA_DEFAULT[k]};
+const waFill=(t,v)=>String(t).replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m);
+const cleanName=n=>String(n||'').replace(/\s*\(.*?\)\s*/g,' ').trim();
+function orderVars(o,c){return{name:cleanName(o.customer),no:o.no,date:fmtDate(o.date),items:itemsText(o),amount:money(c.amount),received:money(c.received),balance:money(c.balance),status:c.status||'being processed',type:o.channel||'',phone:o.phone||''}}
+function waText(o,c,key){return waFill(waTpl(key||(c.balance>0?'pay':'update')),orderVars(o,c))}
 
 /* ============ Orders table ============ */
 function filteredOrders(){
@@ -664,6 +695,7 @@ function filteredOrders(){
     if(f.del!=='*'&&(o.status||'')!==f.del)return false;
     if(f.pay!=='*'&&c.pay!==f.pay)return false;
     if(f.month!=='*'&&(f.month==='undated'?o.date:(o.date||'').slice(0,7)!==f.month))return false;
+    if(f.chan&&f.chan!=='*'&&(o.channel||'')!==f.chan)return false;
     if(f.prod!=='*'&&!o.items.some(i=>i.pid===f.prod&&+i.qty>0))return false;
     if(f.open&&!c.open)return false;
     return true});
@@ -683,14 +715,15 @@ function ordersView(){
    <select data-of="del">${opt('*','All delivery',f.del)}${DELIVERY.map(s=>opt(s,s,f.del)).join('')}${opt('','Status not set',f.del)}</select>
    <select data-of="pay">${opt('*','All payment',f.pay)}${PAYSTAT.map(s=>opt(s,s,f.pay)).join('')}</select>
    <select data-of="month">${opt('*','All months',f.month)}${months.map(m=>opt(m,monthLabel(m),f.month)).join('')}</select>
+   <select data-of="chan">${opt('*','Online + Offline',f.chan||'*')}${CHANNELS.map(v=>opt(v,v,f.chan)).join('')}${opt('','Type not set',f.chan)}</select>
    <select data-of="prod">${opt('*','All products',f.prod)}${DB.products.map(p=>opt(p.id,p.name,f.prod)).join('')}</select>
    <label class="chip ${f.open?'on':''}" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" data-of="open" ${f.open?'checked':''} style="display:none">Open only</label>
-   ${(f.q||f.del!=='*'||f.pay!=='*'||f.month!=='*'||f.prod!=='*'||f.open||f.drill)?'<button class="btn sm ghost" data-act="reset-filters">Reset</button>':''}
+   ${(f.q||f.del!=='*'||f.pay!=='*'||f.month!=='*'||f.prod!=='*'||(f.chan&&f.chan!=='*')||f.open||f.drill)?'<button class="btn sm ghost" data-act="reset-filters">Reset</button>':''}
   </div>
   <div class="card"><div class="tw"><table><thead><tr>${OCOLS.map(c=>`<th class="sort ${['amount','received','balance','days','items'].includes(c[0])?'num':''}" data-act="sort" data-col="${c[0]}">${c[1]}${UI.sort.col===c[0]?(UI.sort.dir>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>`;
   h+=rows.length?rows.map(({o,c})=>`<tr class="click" data-act="open-order" data-id="${o.id}">
     <td><b>${o.no}</b>${pendBadge(o,1)}</td><td style="white-space:nowrap">${fmtDate(o.date)}</td>
-    <td><b>${esc(o.customer)}</b>${hasCheck(o)?' <span class="b warn">CHECK</span>':''}<div class="small muted">${esc(o.phone||'')}</div></td>
+    <td><b>${esc(o.customer)}</b> ${chanBadge(o)}${hasCheck(o)?' <span class="b warn">CHECK</span>':''}<div class="small muted">${esc(o.phone||'')}</div></td>
     <td class="small">${esc(itemsText(o))}</td><td class="num">${money(c.amount)}</td><td class="num">${money(c.received)}</td>
     <td class="num" style="${c.balance>0?'color:var(--bad);font-weight:700':''}">${money(c.balance)}</td>
     <td>${payBadge(c.pay)}</td><td>${delBadge(c.status)}</td><td>${nextBadge(c.next)}</td><td class="num">${c.daysOpen==null?'':`<span style="${c.daysOpen>7?'color:var(--bad);font-weight:700':''}">${c.daysOpen}</span>`}</td></tr>`).join('')
@@ -951,7 +984,7 @@ function userForm(name){
    ${ex?'':`<div class="field"><label>User name</label><input id="u_name" autofocus placeholder="e.g. Sales Desk"></div><div class="field"><label>Role</label><select id="u_role"><option value="staff">Staff — orders, payments, delivery, customers</option><option value="admin">Admin — everything</option></select></div>`}
    <div class="field wide"><label>Password</label><div class="listrow"><input id="u_pw" value="${genPassword()}" style="flex:1;font-family:ui-monospace,Consolas,monospace"><button class="btn sm" type="button" data-act="user-gen">↻ New</button></div></div>
   </div><div class="hint" id="u_err" style="margin-top:8px;color:var(--bad)"></div>
-  <p class="small muted">Share the user name and password with the person. Passwords are stored scrambled in the cloud — nobody (not even ADMIN) can read them later, only reset them.${ex?' Resetting signs this user out of all devices.':''}</p></div>
+  <p class="small muted">Share the user name and password with the person. Minimum 4 characters. Passwords are stored scrambled in the cloud — nobody (not even ADMIN) can read them later, only reset them.${ex?' Resetting signs this user out of all devices.':''}</p></div>
   <div class="mf"><button class="btn" data-act="modal-close">Cancel</button><button class="btn primary" id="u_ok">${ex?'Reset password':'Create login'}</button></div>`,'narrow');
   $('#u_ok').onclick=async()=>{
     const n=ex?name:$('#u_name').value.trim(),pw=$('#u_pw').value.trim(),role=ex?ex.role:$('#u_role').value;
@@ -1018,11 +1051,12 @@ function settingsView(){
   if(adm){
     h+=`<div class="card"><div class="ch"><h3>Payment modes</h3></div><div class="cb"><div class="listrow">${DB.lists.payModes.map((m,i)=>`<span class="tag">${esc(m)}<button data-act="del-mode" data-i="${i}" title="Remove">×</button></span>`).join('')}</div>
      <div class="listrow" style="margin-top:10px"><input id="newMode" placeholder="New payment mode" style="padding:7px 9px;border:1px solid var(--border2);border-radius:7px;background:var(--surface)"><button class="btn sm" data-act="add-mode">Add</button></div></div></div>`;
-    h+=`<div class="card"><div class="ch"><h3>Offers / reasons</h3><span class="muted small grow">picking one in an order fills its discount automatically</span></div><div class="cb"><table><thead><tr><th>Name</th><th style="width:150px">Discount type</th><th style="width:110px" class="num">Value</th><th style="width:40px"></th></tr></thead><tbody>${DB.lists.offers.map((o,i)=>`<tr><td><input data-off="name" data-i="${i}" value="${esc(o.name)}"></td><td><select data-off="kind" data-i="${i}"><option value="" ${!o.kind?'selected':''}>No discount</option><option value="pct" ${o.kind==='pct'?'selected':''}>% off</option><option value="flat" ${o.kind==='flat'?'selected':''}>₹ flat off</option></select></td><td><input type="number" step="0.01" data-off="val" data-i="${i}" value="${o.val??''}" placeholder="${o.kind==='flat'?'₹':o.kind==='pct'?'%':'—'}" ${o.kind?'':'disabled'} style="text-align:right"></td><td><button class="btn sm ghost" data-act="del-offer" data-i="${i}">×</button></td></tr>`).join('')}</tbody></table>
+    h+=`<div class="card"><div class="ch"><h3>Offers / reasons</h3><span class="muted small grow">picking one in an order fills its discount automatically</span></div><div class="cb"><table><thead><tr><th>Name</th><th style="width:170px">Discount type</th><th style="width:110px" class="num">Value</th><th style="width:40px"></th></tr></thead><tbody>${DB.lists.offers.map((o,i)=>`<tr><td><input data-off="name" data-i="${i}" value="${esc(o.name)}"></td><td><select data-off="kind" data-i="${i}"><option value="" ${!o.kind?'selected':''}>No discount</option><option value="pct" ${o.kind==='pct'?'selected':''}>% off</option><option value="unit" ${o.kind==='unit'?'selected':''}>₹ off per unit</option><option value="flat" ${o.kind==='flat'?'selected':''}>₹ flat off total</option></select></td><td><input type="number" step="0.01" data-off="val" data-i="${i}" value="${o.val??''}" placeholder="${o.kind==='flat'||o.kind==='unit'?'₹':o.kind==='pct'?'%':'—'}" ${o.kind?'':'disabled'} style="text-align:right"></td><td><button class="btn sm ghost" data-act="del-offer" data-i="${i}">×</button></td></tr>`).join('')}</tbody></table>
      <button class="btn sm" data-act="add-offer" style="margin-top:8px">+ Add offer</button><div class="small muted" style="margin-top:6px">“${esc(defaultOffer())}” is pre-selected on every new order.</div></div></div>`;
   }else{
     h+=`<div class="card"><div class="ch"><h3>Payment modes &amp; offers</h3><span class="b">ADMIN only</span></div><div class="cb"><div class="listrow">${DB.lists.payModes.map(m=>`<span class="tag" style="padding-right:10px">${esc(m)}</span>`).join('')}</div><div class="listrow" style="margin-top:10px">${DB.lists.offers.map(o=>`<span class="tag" style="padding-right:10px">${esc(o.name)} · <span class="muted">${esc(offerLabel(o))}</span></span>`).join('')}</div></div></div>`;
   }
+  if(adm)h+=waSettings();
   h+=`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>How this works</h3></div><div class="cb small muted" style="columns:2 280px;column-gap:28px">
    <p><b>One shared copy</b> lives in ADMIN's Google Drive. Every change you make shows instantly here and uploads in the background; without internet it waits on this device and uploads when you're back online.</p>
    <p><b>Clashes:</b> if two devices use the same order number, or edit the same order at the same time, a red “sync issue” appears with one-click fixes (e.g. “Use next free number”).</p>
@@ -1032,7 +1066,25 @@ function settingsView(){
    ${adm?`<p><button class="btn sm danger" data-act="clear-all">Delete all data in the cloud…</button></p>`:''}</div></div>`;
   return h+`</div>`;
 }
-const offerLabel=x=>x.kind==='pct'?x.val+'% off':x.kind==='flat'?money(x.val)+' off':'no discount';
+const offerLabel=x=>x.kind==='pct'?x.val+'% off whole order':x.kind==='unit'?money(x.val)+' off each unit':x.kind==='flat'?money(x.val)+' off total':'no discount';
+function waSample(){const o=DB.orders.find(o=>calc(o).balance>0)||DB.orders[0];return o?{o,c:calc(o)}:null}
+function waPreview(k,txt){
+  const sm=waSample();let v;
+  if(k==='cust'||k==='hello')v={name:sm?cleanName(sm.o.customer):'Asha Menon',orders:'#41 (03-Oct-2026): ₹7,999\n#45 (05-Oct-2026): ₹5,999',total_due:'₹13,998',phone:sm?sm.o.phone:''};
+  else v=sm?orderVars(sm.o,sm.c):{name:'Asha Menon',no:42,date:'03-Oct-2026',items:'1 × Pepal One',amount:'₹7,999',received:'₹0',balance:'₹7,999',status:'Yet to Deliver',type:'Online',phone:''};
+  return waFill(txt,v);
+}
+function waSettings(){
+  return`<div class="card" style="grid-column:1/-1"><div class="ch"><h3>💬 WhatsApp messages</h3><span class="muted small grow">used by the WhatsApp buttons for everyone · put {placeholders} where order details should go</span><button class="btn sm primary" data-act="wa-save">Save messages</button></div><div class="cb"><div class="grid g2">
+  ${Object.keys(WA_DEFAULT).map(k=>{const cur=waTpl(k),custom=cur!==WA_DEFAULT[k];return`<div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><b>${WA_INFO[k].t}</b>${custom?'<span class="b info">edited</span>':'<span class="b">default</span>'}<span class="grow"></span><button class="btn sm ghost" data-act="wa-reset" data-k="${k}">Reset to default</button></div>
+    <div class="small muted" style="margin-bottom:6px">${esc(WA_INFO[k].u)}</div>
+    <textarea data-wa="${k}" rows="6" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);font-family:inherit">${esc(cur)}</textarea>
+    <div class="listrow small" style="margin:4px 0 6px">${WA_INFO[k].ph.map(p=>`<button class="tag" style="padding:2px 8px;cursor:pointer" data-act="wa-ins" data-k="${k}" data-p="${p}" title="Insert">{${p}}</button>`).join('')}</div>
+    <div class="small muted">Preview:</div><div class="notebox small" id="wap_${k}" style="background:color-mix(in srgb,var(--ok) 8%,var(--surface))">${esc(waPreview(k,cur))}</div>
+  </div>`}).join('')}
+  </div></div></div>`;
+}
 function setMasters(fn,msg){
   const m={products:clone(DB.products),lists:clone(DB.lists)};
   if(fn(m)===false)return;
@@ -1051,7 +1103,7 @@ function pendBadge(o,small){return pendingIds().has(o.id)?`<span class="b warn" 
 function orderRow(o,c){
   return`<div class="orow" data-act="open-order" data-id="${o.id}"><div class="no">#${o.no}</div><div><b>${esc(o.customer)}</b><div class="small muted">${fmtDate(o.date)} · ${esc(itemsText(o))}</div></div>
   <div class="r"><div class="num"><b>${money(c.amount)}</b></div>${c.balance>0?`<div class="small" style="color:var(--bad);font-weight:700">${money(c.balance)} due</div>`:''}</div>
-  <div class="badges">${pendBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${c.open?nextBadge(c.next):''}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div></div>`;
+  <div class="badges">${pendBadge(o)}${chanBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${c.open?nextBadge(c.next):''}${ageBadge(c.daysOpen)}${hasCheck(o)?'<span class="b warn">CHECK</span>':''}</div></div>`;
 }
 function listDrawer(k,v){
   return{render(){const d=drill(k,v);const rows=DB.orders.map(o=>({o,c:calc(o)})).filter(r=>d.f(r.o)).sort((a,b)=>(b.c.balance||0)-(a.c.balance||0)||b.o.no-a.o.no);
@@ -1065,20 +1117,23 @@ function orderDrawer(id){
     const items=o.items.filter(i=>+i.qty>0);
     const x=buildCtx();const issues=CHECKS.filter(ck=>ck.id!=='check'&&ck.t(o,c,x));
     const others=DB.orders.filter(z=>z.id!==o.id&&custKey(z)===custKey(o));
-    let h=`<div class="sect" style="display:flex;gap:6px;flex-wrap:wrap">${pendBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${nextBadge(c.next)}${ageBadge(c.daysOpen)}</div>
+    let h=`<div class="sect" style="display:flex;gap:6px;flex-wrap:wrap">${pendBadge(o)}${chanBadge(o)}${delBadge(c.status)}${payBadge(c.pay)}${nextBadge(c.next)}${ageBadge(c.daysOpen)}</div>
+    ${o.channel?'':`<div class="notice sect">Order type not set — <button class="btn sm" data-act="set-chan" data-id="${o.id}" data-v="Online">🌐 Online</button><button class="btn sm" data-act="set-chan" data-id="${o.id}" data-v="Offline">🏬 Offline</button></div>`}
     <div class="small muted sect">${o.createdBy?'Created by <b>'+esc(o.createdBy)+'</b>'+(o.createdAt?' · '+new Date(o.createdAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):''):''}${o.updatedBy&&o.updatedAt?' · last change by <b>'+esc(o.updatedBy)+'</b> '+new Date(o.updatedAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):''}</div>
     <div class="actions sect">${quickActions(o,c,true)}<button class="btn" data-act="edit-order" data-id="${o.id}">✏️ Edit</button></div>
     <div class="kv sect">
      <div><div class="k">Order date</div><div class="v">${fmtDate(o.date)}</div></div>
+     <div><div class="k">Order type</div><div class="v">${o.channel?esc(o.channel):'<span style="color:var(--warn)">not set</span>'}</div></div>
      <div><div class="k">Customer</div><div class="v"><span class="link" data-act="open-cust" data-k="${esc(custKey(o))}">${esc(o.customer)}</span></div></div>
      <div><div class="k">Phone</div><div class="v">${o.phone?esc(o.phone):'—'}</div></div>
      <div><div class="k">Delivery date</div><div class="v">${fmtDate(o.deliveryDate)}</div></div>
     </div>
     <div class="card sect"><div class="ch"><h3>Items</h3></div><div class="tw"><table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Value</th>${c.status==='Part Delivered'?'<th class="num">Delivered</th>':''}</tr></thead><tbody>
-     ${items.map(i=>`<tr><td>${esc(prodName(i))}</td><td class="num">${i.qty}</td><td class="num">${money(+i.rate)}</td><td class="num">${money(i.qty*i.rate)}</td>${c.status==='Part Delivered'?`<td class="num">${i.dlv||0} / ${i.qty}</td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="nodata">No items</td></tr>'}
+     ${items.map(i=>`<tr><td>${esc(prodName(i))}${lineDisc(i)?` <span class="b ok">${esc(lineDiscTxt(i))}</span>`:''}</td><td class="num">${i.qty}</td><td class="num">${money(+i.rate)}</td><td class="num">${lineDisc(i)?`<s class="faint">${money(i.qty*i.rate)}</s> `:''}${money(i.qty*i.rate-lineDisc(i))}</td>${c.status==='Part Delivered'?`<td class="num">${i.dlv||0} / ${i.qty}</td>`:''}</tr>`).join('')||'<tr><td colspan="4" class="nodata">No items</td></tr>'}
      </tbody><tfoot>
       <tr><td colspan="3">List value</td><td class="num">${money(c.listValue)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>
-      ${+o.disc?`<tr><td colspan="3">Discount ${o.disc}%</td><td class="num">− ${money(c.listValue*o.disc/100)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
+      ${c.itemDisc?`<tr><td colspan="3">Item discounts</td><td class="num">− ${money(c.itemDisc)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
+      ${+o.disc?`<tr><td colspan="3">Discount ${o.disc}% on whole order</td><td class="num">− ${money((c.listValue-c.itemDisc)*o.disc/100)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
       ${+o.flat?`<tr><td colspan="3">Flat discount</td><td class="num">− ${money(+o.flat)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
       ${c.hasOv?`<tr><td colspan="3">Amount override (special price)</td><td class="num">${money(+o.override)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>`:''}
       <tr><td colspan="3">Order amount ${o.offer?`<span class="b">${esc(o.offer)}</span>`:''}</td><td class="num" style="font-size:15px">${money(c.amount)}</td>${c.status==='Part Delivered'?'<td></td>':''}</tr>
@@ -1097,12 +1152,12 @@ function custDrawer(k){
   return{render(){const g=customerGroups().find(x=>x.k===k);if(!g)return null;
     const ph=waNum(g.phone);
     const bal=g.orders.map(o=>({o,c:calc(o)})).filter(r=>r.c.balance>0);
-    const waMsg=`Hello ${g.name.replace(/\s*\(.*?\)\s*/g,' ').trim()}, greetings from PEPAL!\nA gentle reminder of the balance on your order(s):\n`+bal.map(r=>`#${r.o.no} (${fmtDate(r.o.date)}): ${money(r.c.balance)}`).join('\n')+`\nTotal due: ${money(g.bal)}\nThank you!`;
+    const waMsg=waFill(waTpl(g.bal>0?'cust':'hello'),{name:cleanName(g.name),orders:bal.map(r=>`#${r.o.no} (${fmtDate(r.o.date)}): ${money(r.c.balance)}`).join('\n'),total_due:money(g.bal),phone:g.phone||''});
     const c=g.cust;
     return{title:g.name,html:`<div class="kv sect"><div><div class="k">Phone</div><div class="v">${esc(g.phone||'—')}</div></div>${c&&c.place?`<div><div class="k">Place</div><div class="v">${esc(c.place)}</div></div>`:''}<div><div class="k">Orders</div><div class="v">${g.orders.length}</div></div><div><div class="k">Units</div><div class="v">${g.units}</div></div><div><div class="k">Billed</div><div class="v">${money(g.billed)}</div></div><div><div class="k">Received</div><div class="v">${money(g.rec)}</div></div><div><div class="k">Balance due</div><div class="v" style="color:${g.bal>0?'var(--bad)':'inherit'}">${money(g.bal)}</div></div></div>
     ${c&&c.notes?`<div class="notebox sect">${esc(c.notes)}</div>`:''}
     ${g.alias.length?`<div class="notice">Same phone recorded under different names: <b>${esc([g.name,...g.alias].join(' · '))}</b> — check if these are the same person.</div>`:''}
-    <div class="actions sect">${ph.length>=10?`<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(g.bal>0?waMsg:'Hello '+g.name+', greetings from PEPAL!')}">💬 WhatsApp${g.bal>0?' balance reminder':''}</a><a class="btn" href="tel:+${ph}">📞 Call</a>`:''}<button class="btn primary" data-act="new-order-for" data-k="${esc(k)}">+ New order for this customer</button></div>
+    <div class="actions sect">${ph.length>=10?`<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(waMsg)}">💬 WhatsApp${g.bal>0?' balance reminder':''}</a><a class="btn" href="tel:+${ph}">📞 Call</a>`:''}<button class="btn primary" data-act="new-order-for" data-k="${esc(k)}">+ New order for this customer</button></div>
     <div class="actions sect">${c?(isAdmin()?`<button class="btn sm" data-act="edit-customer" data-id="${c.id}">✏️ Edit customer</button><button class="btn sm danger" data-act="del-customer" data-id="${c.id}">Delete from customer list</button>`:'<span class="small muted">In the customer list · only ADMIN can edit customer details</span>'):`<button class="btn sm" data-act="save-cust" data-k="${esc(k)}">+ Save to customer list</button>`}</div>
     ${g.orders.length?g.orders.slice().sort((a,b)=>b.no-a.no).map(o=>orderRow(o,calc(o))).join(''):'<div class="nodata">No orders yet.</div>'}`}}};
 }
@@ -1125,7 +1180,7 @@ let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add
 function orderForm(id,preset){
   const o=id?JSON.parse(JSON.stringify(byId(id))):Object.assign({id:null,no:nextNo(),date:today(),customer:'',phone:'',items:[],disc:'',flat:'',offer:defaultOffer(),override:'',payments:[],status:'Yet to Deliver',deliveryDate:'',notes:'',payMode:''},preset||{});
   const pids=new Set(DB.products.filter(p=>p.active!==false).map(p=>p.id));o.items.forEach(i=>pids.add(i.pid));
-  const rowsP=[...pids].map(pid=>{const p=DB.products.find(p=>p.id===pid);const it=o.items.find(i=>i.pid===pid)||{};return{pid,name:p?p.name:it.name,rate:it.rate!=null&&it.rate!==''?it.rate:(p?p.rate:0),qty:it.qty||'',dlv:it.dlv||''}});
+  const rowsP=[...pids].map(pid=>{const p=DB.products.find(p=>p.id===pid);const it=o.items.find(i=>i.pid===pid)||{};return{pid,name:p?p.name:it.name,rate:it.rate!=null&&it.rate!==''?it.rate:(p?p.rate:0),qty:it.qty||'',dlv:it.dlv||'',dkind:it.dkind||'unit',dval:+it.dval?it.dval:''}});
   if(!id&&!o.payments.length)o.payments=[{id:uid('p'),date:today(),mode:o.payMode||DB.lists.payModes[0]||'',amount:'',ref:''}];
   const custNames=[...new Set(DB.customers.map(c=>c.name).concat(DB.orders.map(z=>z.customer)).filter(Boolean))].sort();
   const sel=(arr,cur,blank)=>(blank!=null?`<option value="">${blank}</option>`:'')+arr.map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join('')+(cur&&!arr.includes(cur)?`<option selected>${esc(cur)}</option>`:'');
@@ -1135,21 +1190,22 @@ function orderForm(id,preset){
    <div class="form">
     <div class="field"><label>Order No</label><input type="number" id="f_no" value="${o.no}"></div>
     <div class="field"><label>Order date</label><input type="date" id="f_date" value="${o.date||''}"></div>
+    <div class="field"><label>Order type *</label><div class="seg" id="f_chan">${CHANNELS.map(v=>`<button type="button" data-act="f-chan" data-v="${v}" class="${o.channel===v?'on':''}">${v==='Online'?'🌐':'🏬'} ${v}</button>`).join('')}</div></div>
     <div class="field" style="grid-column:span 2"><label>Customer *</label><input id="f_cust" list="custList" value="${esc(o.customer)}" ${id?'':'autofocus'} autocomplete="off"><datalist id="custList">${custNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
     <div class="field"><label>Phone</label><input id="f_phone" value="${esc(o.phone||'')}" inputmode="tel"></div>
     <div class="field wide"><div class="hint" id="f_hint"></div></div>
    </div>
    <div class="fsec">Items</div>
-   <div class="tw ${o.status==='Part Delivered'?'showdlv':''}" id="itemsWrap"><table class="itbl"><thead><tr><th>Product</th><th class="num" style="width:110px">Rate ₹</th><th class="num" style="width:90px">Qty</th><th class="num dlvcol" style="width:100px">Delivered</th><th class="num" style="width:120px">Value</th></tr></thead><tbody>
-    ${rowsP.map(r=>`<tr data-irow="${r.pid}" data-name="${esc(r.name)}"><td><b>${esc(r.name)}</b></td><td><input type="number" step="0.01" data-ii="rate" value="${r.rate}"></td><td><input type="number" min="0" step="1" data-ii="qty" value="${r.qty}" placeholder="0"></td><td class="dlvcol"><input type="number" min="0" data-ii="dlv" value="${r.dlv}" placeholder="0"></td><td class="num" data-line>—</td></tr>`).join('')||'<tr><td colspan="5" class="nodata">Add products in Settings first.</td></tr>'}
+   <div class="tw ${o.status==='Part Delivered'?'showdlv':''}" id="itemsWrap"><table class="itbl"><thead><tr><th>Product</th><th class="num" style="width:110px">Rate ₹</th><th class="num" style="width:80px">Qty</th><th class="num" style="width:170px">Discount</th><th class="num dlvcol" style="width:90px">Delivered</th><th class="num" style="width:120px">Value</th></tr></thead><tbody>
+    ${rowsP.map(r=>`<tr data-irow="${r.pid}" data-name="${esc(r.name)}"><td><b>${esc(r.name)}</b></td><td><input type="number" step="0.01" data-ii="rate" value="${r.rate}"></td><td><input type="number" min="0" step="1" data-ii="qty" value="${r.qty}" placeholder="0"></td><td><div class="dgrp"><input type="number" min="0" step="0.01" data-ii="dval" value="${r.dval}" placeholder="0"><select data-ii="dkind"><option value="unit" ${r.dkind!=='pct'?'selected':''}>₹/unit</option><option value="pct" ${r.dkind==='pct'?'selected':''}>%</option></select></div></td><td class="dlvcol"><input type="number" min="0" data-ii="dlv" value="${r.dlv}" placeholder="0"></td><td class="num" data-line>—</td></tr>`).join('')||'<tr><td colspan="6" class="nodata">Add products in Settings first.</td></tr>'}
    </tbody></table></div>
    <div class="form" style="margin-top:10px">
     <div class="field"><label>Offer / reason</label><select id="f_offer">${sel(DB.lists.offers.map(x=>x.name),o.offer)}</select></div>
-    <div class="field"><label>Discount %</label><input type="number" step="0.01" id="f_disc" value="${o.disc??''}" placeholder="0"></div>
-    <div class="field"><label>Flat discount ₹</label><input type="number" step="0.01" id="f_flat" value="${o.flat??''}" placeholder="0"></div>
+    <div class="field"><label>Discount % <span class="faint">(whole order)</span></label><input type="number" step="0.01" id="f_disc" value="${o.disc??''}" placeholder="0"></div>
+    <div class="field"><label>Flat discount ₹ <span class="faint">(total)</span></label><input type="number" step="0.01" id="f_flat" value="${o.flat??''}" placeholder="0"></div>
     <div class="field"><label>Amount override ₹ <span class="faint">(special price)</span></label><input type="number" step="0.01" id="f_ov" value="${o.override??''}" placeholder="blank = calculate"></div>
    </div>
-   <div class="totals"><div><div class="k">Units</div><div class="v" id="t_units">0</div></div><div><div class="k">List value</div><div class="v" id="t_list">—</div></div><div><div class="k">Order amount</div><div class="v" id="t_amt" style="font-size:17px">—</div></div><div><div class="k">Received</div><div class="v" id="t_rec">—</div></div><div><div class="k">Balance</div><div class="v" id="t_bal">—</div></div></div>
+   <div class="totals"><div><div class="k">Units</div><div class="v" id="t_units">0</div></div><div><div class="k">List value</div><div class="v" id="t_list">—</div></div><div><div class="k">Discounts</div><div class="v" id="t_disc">—</div></div><div><div class="k">Order amount</div><div class="v" id="t_amt" style="font-size:17px">—</div></div><div><div class="k">Received</div><div class="v" id="t_rec">—</div></div><div><div class="k">Balance</div><div class="v" id="t_bal">—</div></div></div>
    <div class="field" style="margin-top:12px"><label>Notes</label><textarea id="f_notes" rows="2">${esc(o.notes||'')}</textarea></div>
    <details class="xsec" id="d_pay"><summary><span>💳 Payments received</span><span class="xs" id="s_pay"></span></summary><div class="xb">
     <div class="tw"><table class="itbl"><thead><tr><th style="width:150px">Date</th><th>Mode</th><th class="num" style="width:130px">Amount ₹</th><th>Ref</th><th style="width:40px"></th></tr></thead><tbody id="payRows">${o.payments.map(payRow).join('')}</tbody></table></div>
@@ -1167,8 +1223,10 @@ function orderForm(id,preset){
   const F=$('#ofrm');
   F.__payRow=payRow;F.__oid=o.id;
   const recalc=()=>{
-    let units=0,list=0;F.querySelectorAll('[data-irow]').forEach(tr=>{const q=+tr.querySelector('[data-ii=qty]').value||0,r=+tr.querySelector('[data-ii=rate]').value||0;units+=q;list+=q*r;tr.querySelector('[data-line]').textContent=q?money(q*r):'—'});
-    const ov=$('#f_ov').value,disc=+$('#f_disc').value||0,flat=+$('#f_flat').value||0;const amt=ov!==''?+ov:(list?Math.max(0,list*(1-disc/100)-flat):null);
+    let units=0,list=0,idisc=0;F.querySelectorAll('[data-irow]').forEach(tr=>{const g=k=>tr.querySelector('[data-ii='+k+']').value;const it={qty:+g('qty')||0,rate:+g('rate')||0,dval:+g('dval')||0,dkind:g('dkind')};const ld=lineDisc(it);units+=it.qty;list+=it.qty*it.rate;idisc+=ld;
+      tr.querySelector('[data-line]').innerHTML=it.qty?(ld?`<s class="faint small">${money(it.qty*it.rate)}</s><br>`:'')+money(it.qty*it.rate-ld):'—'});
+    const ov=$('#f_ov').value,disc=+$('#f_disc').value||0,flat=+$('#f_flat').value||0;const amt=ov!==''?+ov:(list?Math.max(0,(list-idisc)*(1-disc/100)-flat):null);
+    $('#t_disc').textContent=amt!=null&&list&&list-amt>0.004?'− '+money(list-amt):'—';
     const rec=[...F.querySelectorAll('[data-pp=amount]')].reduce((s,i)=>s+(+i.value||0),0);
     $('#t_units').textContent=units;$('#t_list').textContent=money(list||null);$('#t_amt').textContent=amt==null?'Amount TBC':money(amt);$('#t_rec').textContent=money(rec);
     const bal=amt==null?null:($('#f_status').value==='Cancelled'?0:amt-rec);$('#t_bal').textContent=money(bal);$('#t_bal').style.color=bal>0?'var(--bad)':bal<0?'var(--warn)':'';
@@ -1188,7 +1246,8 @@ function orderForm(id,preset){
   F.addEventListener('input',recalc);F.addEventListener('change',recalc);
   $('#f_cust').addEventListener('change',()=>{const n=$('#f_cust').value.trim();if(!$('#f_phone').value){const mc=DB.customers.find(c=>c.name===n&&c.phone);const z=DB.orders.slice().reverse().find(z=>z.customer===n&&z.phone);if(mc||z){$('#f_phone').value=(mc||z).phone;if(z&&!$('#f_pm').value&&z.payMode)$('#f_pm').value=z.payMode;recalc()}}});
   $('#f_offer').addEventListener('change',()=>{const of=DB.lists.offers.find(x=>x.name===$('#f_offer').value);if(!of||$('#f_ov').value!=='')return;
-    $('#f_disc').value=of.kind==='pct'?of.val:'';$('#f_flat').value=of.kind==='flat'?of.val:'';recalc()});
+    $('#f_disc').value=of.kind==='pct'?of.val:'';$('#f_flat').value=of.kind==='flat'?of.val:'';
+    F.querySelectorAll('[data-irow]').forEach(tr=>{tr.querySelector('[data-ii=dval]').value=of.kind==='unit'?of.val:'';tr.querySelector('[data-ii=dkind]').value='unit'});recalc()});
   $('#f_status').addEventListener('change',()=>{const s=$('#f_status').value;if(s==='Delivered'&&!$('#f_ddate').value)$('#f_ddate').value=today()});
   recalc();
   $('#f_save').onclick=()=>{
@@ -1198,12 +1257,13 @@ function orderForm(id,preset){
     const gap=skipInfo(no,o.id);
     if(gap&&F.__skipOk!==no){F.__skipOk=no;return err(`⚠ #${no} skips ${gap}. Click <b>${id?'Save changes':'Create order'}</b> again to confirm, or <span class="link" data-act="f-use-next">use #${nextNoExcept(o.id)}</span>.`)}
     const cust=$('#f_cust').value.trim();if(!cust)return err('Customer name is required.');
-    const items=[...F.querySelectorAll('[data-irow]')].map(tr=>({pid:tr.dataset.irow,name:tr.dataset.name,qty:+tr.querySelector('[data-ii=qty]').value||0,rate:+tr.querySelector('[data-ii=rate]').value||0,dlv:+tr.querySelector('[data-ii=dlv]').value||0})).filter(i=>i.qty>0);
+    const chan=(F.querySelector('#f_chan .on')||{}).dataset;if(!chan||!chan.v)return err('Choose the order type: <b>Online</b> or <b>Offline</b>.');
+    const items=[...F.querySelectorAll('[data-irow]')].map(tr=>{const dv=+tr.querySelector('[data-ii=dval]').value||0;return{pid:tr.dataset.irow,name:tr.dataset.name,qty:+tr.querySelector('[data-ii=qty]').value||0,rate:+tr.querySelector('[data-ii=rate]').value||0,dlv:+tr.querySelector('[data-ii=dlv]').value||0,dkind:dv?tr.querySelector('[data-ii=dkind]').value:'',dval:dv}}).filter(i=>i.qty>0);
     const pays=[...F.querySelectorAll('[data-prow]')].map(tr=>({id:tr.dataset.prow,date:tr.querySelector('[data-pp=date]').value,mode:tr.querySelector('[data-pp=mode]').value,amount:+tr.querySelector('[data-pp=amount]').value||0,ref:tr.querySelector('[data-pp=ref]').value.trim()})).filter(p=>p.amount);
     const status=$('#f_status').value;
     if(status==='Part Delivered'&&!items.some(i=>i.dlv>0))return err('Part Delivered: enter the delivered qty for at least one item.');
     const ov=$('#f_ov').value;
-    const rec={id:id||uid('o'),no,date:$('#f_date').value,customer:cust,phone:$('#f_phone').value.trim(),items,disc:$('#f_disc').value===''?'':+$('#f_disc').value,flat:$('#f_flat').value===''?'':+$('#f_flat').value,offer:$('#f_offer').value,override:ov===''?'':+ov,payments:pays,status,deliveryDate:$('#f_ddate').value,notes:$('#f_notes').value.trim(),payMode:$('#f_pm').value};
+    const rec={id:id||uid('o'),no,date:$('#f_date').value,channel:chan.v,customer:cust,phone:$('#f_phone').value.trim(),items,disc:$('#f_disc').value===''?'':+$('#f_disc').value,flat:$('#f_flat').value===''?'':+$('#f_flat').value,offer:$('#f_offer').value,override:ov===''?'':+ov,payments:pays,status,deliveryDate:$('#f_ddate').value,notes:$('#f_notes').value.trim(),payMode:$('#f_pm').value};
     if(!rec.payMode&&pays.length)rec.payMode=pays[pays.length-1].mode;
     closeModal();
     ensureCustomer(rec.customer,rec.phone);
@@ -1363,7 +1423,7 @@ function parseWorkbook(buf){
   const rows=sheetRows(oName);const hi=rows.findIndex(r=>r.some(c=>/order\s*no/i.test(String(c||''))));
   const H=rows[hi].map(h=>String(h||'').replace(/\s+/g,' ').trim().toLowerCase());
   const col=re=>H.findIndex(h=>re.test(h));
-  const C={no:col(/^order no/),date:col(/^order date/),cust:col(/^customer/),phone:col(/^phone|^mobile/),disc:col(/^discount/),flat:col(/^flat/),offer:col(/^offer/),ov:col(/^amount override/),mode:col(/^payment mode/),rec:col(/^amount received/),status:col(/^delivery status/),ddate:col(/^delivery date/),notes:col(/^notes?$|^notes /)};
+  const C={no:col(/^order no/),date:col(/^order date/),cust:col(/^customer/),phone:col(/^phone|^mobile/),disc:col(/^discount/),flat:col(/^flat/),chan:col(/^order type|^type$|^channel/),offer:col(/^offer/),ov:col(/^amount override/),mode:col(/^payment mode/),rec:col(/^amount received/),status:col(/^delivery status/),ddate:col(/^delivery date/),notes:col(/^notes?$|^notes /)};
   if(C.cust<0)throw new Error('No “Customer” column found on '+oName+'.');
   const prodCols=[];rows[hi].forEach((h,i)=>{const s=String(h||'');if(/\(qty\)/i.test(s)){prodCols.push({i,name:s.split(/\n|\(qty\)/i)[0].trim()})}});
   // rates
@@ -1385,7 +1445,7 @@ function parseWorkbook(buf){
     const status=isBlank(g(r,C.status))?'':String(g(r,C.status)).trim();
     const date=serialToISO(g(r,C.date)),ddate=serialToISO(g(r,C.ddate));
     const rec=toNum(g(r,C.rec)),mode=isBlank(g(r,C.mode))?'':String(g(r,C.mode)).trim();
-    const o={id:uid('o'),no:no!=null?no:0,date,customer:String(cust).trim(),phone:isBlank(g(r,C.phone))?'':String(g(r,C.phone)).trim(),items,disc:disc??'',flat:toNum(g(r,C.flat))??'',offer:isBlank(g(r,C.offer))?'':String(g(r,C.offer)).trim(),
+    const o={id:uid('o'),no:no!=null?no:0,date,customer:String(cust).trim(),phone:isBlank(g(r,C.phone))?'':String(g(r,C.phone)).trim(),items,disc:disc??'',flat:toNum(g(r,C.flat))??'',channel:(v=>/^on/i.test(v)?'Online':/^off/i.test(v)?'Offline':'')(String(g(r,C.chan)||'')),offer:isBlank(g(r,C.offer))?'':String(g(r,C.offer)).trim(),
       override:toNum(g(r,C.ov))??'',payments:rec?[{id:uid('p'),date:ddate||date||today(),mode,amount:rec,ref:'Imported from Excel'}]:[],status,deliveryDate:ddate,notes:isBlank(g(r,C.notes))?'':String(g(r,C.notes)).trim(),payMode:mode,createdAt:nowISO(),updatedAt:nowISO(),log:[{at:nowISO(),msg:'Imported from Excel'}]};
     if(status==='Delivered')o.items.forEach(i=>i.dlv=i.qty);
     if(status&&!DELIVERY.includes(status))warn.push('#'+o.no+': unknown delivery status “'+status+'” kept as is');
@@ -1447,9 +1507,9 @@ function exportXlsx(scope){
   if(typeof XLSX==='undefined')return toast('Excel library did not load — check internet connection.');
   const list=(scope==='filtered'?filteredOrders().map(r=>r.o):DB.orders.slice()).sort((a,b)=>a.no-b.no);
   const P=DB.products;
-  const head=['Order No','Order Date','Customer','Phone',...P.map(p=>p.name+'\n(qty)'),'Total Units','List Value (₹)','Discount %','Flat Discount (₹)','Offer / Reason','Amount Override (₹)','Order Amount (₹)','Payment Mode','Amount Received (₹)','Balance Due (₹)','Payment Status','Delivery Status','Delivery Date','Days Open','Next Action','Notes'];
+  const head=['Order No','Order Date','Order Type','Customer','Phone',...P.map(p=>p.name+'\n(qty)'),'Total Units','List Value (₹)','Item Discounts (₹)','Discount %','Flat Discount (₹)','Offer / Reason','Amount Override (₹)','Order Amount (₹)','Payment Mode','Amount Received (₹)','Balance Due (₹)','Payment Status','Delivery Status','Delivery Date','Days Open','Next Action','Notes'];
   const aoa=[head];
-  list.forEach(o=>{const c=calc(o);aoa.push([o.no,isoSerial(o.date),o.customer,o.phone,...P.map(p=>{const q=o.items.filter(i=>i.pid===p.id).reduce((s,i)=>s+(+i.qty||0),0);return q||null}),c.units,c.listValue,o.disc!==''&&o.disc!=null?o.disc/100:null,o.flat!==''&&o.flat!=null?+o.flat:null,o.offer,o.override===''?null:+o.override,c.amount,o.payMode||((o.payments||[]).slice(-1)[0]||{}).mode||'',c.received||null,c.balance,c.pay,o.status,isoSerial(o.deliveryDate),c.daysOpen,c.next,o.notes])});
+  list.forEach(o=>{const c=calc(o);aoa.push([o.no,isoSerial(o.date),o.channel||'',o.customer,o.phone,...P.map(p=>{const q=o.items.filter(i=>i.pid===p.id).reduce((s,i)=>s+(+i.qty||0),0);return q||null}),c.units,c.listValue,c.itemDisc||null,o.disc!==''&&o.disc!=null?o.disc/100:null,o.flat!==''&&o.flat!=null?+o.flat:null,o.offer,o.override===''?null:+o.override,c.amount,o.payMode||((o.payments||[]).slice(-1)[0]||{}).mode||'',c.received||null,c.balance,c.pay,o.status,isoSerial(o.deliveryDate),c.daysOpen,c.next,o.notes])});
   const ws=XLSX.utils.aoa_to_sheet(aoa);const dcols=[1,head.indexOf('Delivery Date')],pc=head.indexOf('Discount %');
   for(let r=1;r<aoa.length;r++){dcols.forEach(ci=>{const a=XLSX.utils.encode_cell({r,c:ci});if(ws[a]&&ws[a].v!=null)ws[a].z='dd-mmm-yyyy'});const a=XLSX.utils.encode_cell({r,c:pc});if(ws[a])ws[a].z='0.##%'}
   ws['!cols']=head.map((h,i)=>({wch:i===2?32:i===head.length-1?50:/Next/.test(h)?26:14}));ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:head.length-1}})};
@@ -1477,8 +1537,13 @@ document.addEventListener('click',async e=>{
     case'issues':openIssues();break;
     case'iss-fix':fixIssue(el.dataset.i,el.dataset.how,el.dataset.how==='pick'?($('#pick_'+el.dataset.i)||{}).value:el.dataset.v);break;
     case'new-order':if(!DB.products.length){toast(isAdmin()?'Add products first (Settings) or import the Excel':'ADMIN has to add products first');if(isAdmin())setTab('settings');break}orderForm(null);break;
-    case'new-order-for':{const g=customerGroups().find(x=>x.k===el.dataset.k);if(!DB.products.length){toast('No products yet');break}orderForm(null,{customer:g.name,phone:g.phone||'',payMode:(g.orders.slice(-1)[0]||{}).payMode||''});break}
+    case'new-order-for':{const g=customerGroups().find(x=>x.k===el.dataset.k);if(!DB.products.length){toast('No products yet');break}orderForm(null,{customer:g.name,phone:g.phone||'',payMode:(g.orders.slice(-1)[0]||{}).payMode||'',channel:(g.orders.slice(-1)[0]||{}).channel||''});break}
     case'edit-order':orderForm(id);break;
+    case'set-chan':{const o=byId(id);queueOp({type:'order.patch',orderId:o.id,fields:{channel:el.dataset.v},why:'Order type set'},'#'+o.no+' → '+el.dataset.v);break}
+    case'f-chan':el.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));break;
+    case'wa-save':{const wa={};document.querySelectorAll('[data-wa]').forEach(t=>{const v=t.value.trim();if(v&&v!==WA_DEFAULT[t.dataset.wa])wa[t.dataset.wa]=v});setMasters(m=>{m.lists.wa=wa},'WhatsApp messages saved');break}
+    case'wa-reset':{const t=document.querySelector('[data-wa='+el.dataset.k+']');t.value=WA_DEFAULT[el.dataset.k];$('#wap_'+el.dataset.k).textContent=waPreview(el.dataset.k,t.value);toast('Reset — click “Save messages” to keep it');break}
+    case'wa-ins':{const t=document.querySelector('[data-wa='+el.dataset.k+']');const p='{'+el.dataset.p+'}',a=t.selectionStart??t.value.length,b=t.selectionEnd??a;t.value=t.value.slice(0,a)+p+t.value.slice(b);t.focus();t.setSelectionRange(a+p.length,a+p.length);$('#wap_'+el.dataset.k).textContent=waPreview(el.dataset.k,t.value);break}
     case'f-use-next':{const n=$('#f_no');if(n){n.value=nextNoExcept(($('#ofrm')||{}).__oid);n.dispatchEvent(new Event('input',{bubbles:true}));$('#f_err').textContent=''}break}
     case'open-order':e.stopPropagation();pushDrawer(orderDrawer(id));break;
     case'open-cust':pushDrawer(custDrawer(el.dataset.k));break;
@@ -1487,9 +1552,9 @@ document.addEventListener('click',async e=>{
     case'del-customer':{const c=DB.customers.find(x=>x.id===id);if(await confirmBox('Delete customer?',`Remove <b>${esc(c.name)}</b> from the customer list? Their orders are not touched.`,'Delete',true)){queueOp({type:'customer.delete',customerId:id},'Customer removed from list');drawerStack.pop();renderDrawer()}break}
     case'save-cust':{const g=customerGroups().find(x=>x.k===el.dataset.k);customerForm(null,{name:g.name,phone:g.phone||''});break}
     case'drill':pushDrawer(listDrawer(el.dataset.k,el.dataset.v));break;
-    case'drill-table':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:{k:el.dataset.k,v:el.dataset.v}};closeDrawer();setTab('orders');break;
+    case'drill-table':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',chan:'*',open:false,drill:{k:el.dataset.k,v:el.dataset.v}};closeDrawer();setTab('orders');break;
     case'clear-drill':UI.of.drill=null;refresh();break;
-    case'reset-filters':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',open:false,drill:null};refresh();break;
+    case'reset-filters':UI.of={q:'',del:'*',pay:'*',month:'*',prod:'*',chan:'*',open:false,drill:null};refresh();break;
     case'sort':{const c=el.dataset.col;if(UI.sort.col===c)UI.sort.dir*=-1;else UI.sort={col:c,dir:['no','date','amount','received','balance','days','items'].includes(c)?-1:1};refresh();break}
     case'todo-chip':UI.todoChip=el.dataset.v;refresh();break;
     case'gaps':{const g=orderGaps();openModal(`<div class="mh"><h3>Skipped order numbers (${g.length})</h3><button class="iconbtn" data-act="modal-close">✕</button></div><div class="mb"><p class="muted small" style="margin-top:0">These numbers were never used between the first and the last order. If an order was deleted, ADMIN can check the Activity log.</p><div class="listrow">${g.map(n=>`<span class="tag" style="padding-right:10px">#${n}</span>`).join('')}</div></div><div class="mf"><button class="btn" data-act="modal-close">Close</button></div>`,'narrow');break}
@@ -1500,7 +1565,7 @@ document.addEventListener('click',async e=>{
     case'set-status':{const o=byId(id);if(el.dataset.s==='Cancelled'&&!(await confirmBox('Cancel order #'+o.no+'?','Cancelled orders are excluded from sales and their balance becomes 0. You can change the status back later.','Cancel order',true)))break;setStatus(o,el.dataset.s);break}
     case'del-pay':{const o=byId(id);const p=o.payments.find(p=>p.id===el.dataset.p);if(await confirmBox('Remove payment?',`${money(+p.amount)} on ${fmtDate(p.date)} (${esc(p.mode)}) will be removed from order #${o.no}.`,'Remove',true))queueOp({type:'payment.del',orderId:o.id,paymentId:p.id},'Payment removed');break}
     case'resolve-check':{const o=byId(id);queueOp({type:'order.patch',orderId:o.id,fields:{notes:o.notes.split('|').map(s=>s.trim()).filter(s=>!/^CHECK/i.test(s)).join(' | ')},why:'CHECK resolved'},'CHECK resolved');break}
-    case'dup-order':{const o=byId(id);orderForm(null,{customer:o.customer,phone:o.phone,items:o.items.map(i=>({pid:i.pid,name:i.name,qty:i.qty,rate:(DB.products.find(p=>p.id===i.pid)||i).rate,dlv:0})),offer:o.offer,disc:o.disc,flat:o.flat,payMode:o.payMode});break}
+    case'dup-order':{const o=byId(id);orderForm(null,{channel:o.channel,customer:o.customer,phone:o.phone,items:o.items.map(i=>({pid:i.pid,name:i.name,qty:i.qty,rate:(DB.products.find(p=>p.id===i.pid)||i).rate,dlv:0,dkind:i.dkind,dval:i.dval})),offer:o.offer,disc:o.disc,flat:o.flat,payMode:o.payMode});break}
     case'del-order':{const o=byId(id);if(await confirmBox('Delete order #'+o.no+'?',`This removes <b>${esc(o.customer)}</b>'s order and its payments for everyone. Use “Cancel order” instead if you want to keep a record. (ADMIN can restore it from the Activity log.)`,'Delete',true)){drawerStack.pop();if(!drawerStack.length)closeDrawer();queueOp({type:'order.delete',orderId:o.id},'Order #'+o.no+' deleted')}break}
     case'backup':doBackup();break;
     case'restore':$('#fileJson').value='';$('#fileJson').click();break;
@@ -1554,6 +1619,7 @@ let qT;
 document.addEventListener('input',e=>{
   const t=e.target;
   const keep=(sel,fn)=>{clearTimeout(qT);qT=setTimeout(()=>{fn();const pos=t.selectionStart;refresh();const n=$(sel);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(er){}}},180)};
+  if(t.dataset.wa){const pv=$('#wap_'+t.dataset.wa);if(pv)pv.textContent=waPreview(t.dataset.wa,t.value);return}
   if(t.id==='oq')keep('#oq',()=>{UI.of.q=t.value});
   if(t.id==='cq')keep('#cq',()=>{UI.custQ=t.value});
   if(t.id==='logq')keep('#logq',()=>{LOGF.q=t.value});
